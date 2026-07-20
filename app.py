@@ -17,7 +17,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS DESAIN (OPTIMAL UNTUK HP)
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS DESAIN (MOBILE FRIENDLY)
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -40,7 +40,6 @@ st.markdown(
         color: #2A241D;
     }
     
-    /* Hilangkan padding berlebih bawaan Streamlit di mobile */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
@@ -74,33 +73,47 @@ st.markdown(
         font-weight: 700;
     }
 
-    /* Tab Navigasi Kontras Tinggi untuk HP */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-        background-color: transparent;
-        padding: 5px 0;
-        display: flex;
-        justify-content: space-between;
+    /* KUSTOMISASI TAB NAVIGASI TEGAS UNTUK MOBILE */
+    div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+        gap: 6px !important;
+        background-color: transparent !important;
+        padding: 4px 0 !important;
+        display: flex !important;
+        width: 100% !important;
     }
-    .stTabs [data-baseweb="tab"] {
-        flex: 1;
-        height: 48px;
+
+    div[data-testid="stTabs"] [data-baseweb="tab"] {
+        flex: 1 !important;
+        height: 48px !important;
         background-color: #D3C8B2 !important;
         border: 2px solid #2A241D !important;
-        border-bottom: none !important;
-        border-radius: 8px 8px 0 0;
+        border-radius: 8px !important;
+        padding: 0px 4px !important;
+        margin: 0 !important;
+    }
+
+    div[data-testid="stTabs"] [data-baseweb="tab"] p {
         color: #2A241D !important;
-        font-family: 'Space Mono', monospace;
+        font-family: 'Space Mono', monospace !important;
         font-size: 13px !important;
         font-weight: 700 !important;
-        text-transform: uppercase;
-        padding: 0 4px !important;
-        text-align: center;
+        text-transform: uppercase !important;
+        text-align: center !important;
+        margin: 0 !important;
     }
-    .stTabs [aria-selected="true"] {
+
+    div[data-testid="stTabs"] [aria-selected="true"] {
         background-color: #2A241D !important;
-        color: #FFC23D !important;
         border: 2px solid #2A241D !important;
+    }
+
+    div[data-testid="stTabs"] [aria-selected="true"] p {
+        color: #FFC23D !important;
+        font-weight: 700 !important;
+    }
+
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+        display: none !important;
     }
 
     /* Banner Saldo Utama */
@@ -125,7 +138,7 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* Grid Ringkasan (Responsive Stacked untuk HP) */
+    /* Grid Ringkasan */
     .stat-card {
         background: #FBF8F1;
         border: 2px solid #2A241D;
@@ -181,23 +194,22 @@ st.markdown(
     .tx-amount-keluar { color: #C2402A; font-weight: 700; font-size: 15px; }
     .tx-saldo { font-size: 11px; color: #6B6151; text-align: right; margin-top: 4px; font-weight: 600; }
 
-    /* Label & Form Input Jelas di Layar Kecil */
+    /* Label Input */
     .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label, .stTimeInput label, .stRadio label {
         font-size: 14px !important;
         font-weight: 700 !important;
         color: #2A241D !important;
     }
     
-    /* Tombol Utama */
-    .stButton>button {
+    .stButton>button, .stDownloadButton>button {
         background-color: #2A241D !important;
         color: #FFC23D !important;
         font-family: 'Space Mono', monospace !important;
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: 700 !important;
         border-radius: 6px !important;
         width: 100%;
-        padding: 12px !important;
+        padding: 10px !important;
         margin-top: 5px;
     }
 </style>
@@ -328,8 +340,98 @@ def format_rupiah(n):
     return f"Rp {float(n or 0):,.0f}".replace(",", ".")
 
 
+# FUNGSI MEMBUAT LAPORAN PDF
+def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "TitleStyle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        alignment=1,
+        spaceAfter=10,
+    )
+    subtitle_style = ParagraphStyle(
+        "SubTitleStyle",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=10,
+        alignment=1,
+        spaceAfter=20,
+    )
+
+    elements.append(Paragraph("BUKU KAS HARIAN", title_style))
+    elements.append(
+        Paragraph(
+            f"Laporan Dicetak Pada: {datetime.now(WIB).strftime('%d-%m-%Y %H:%M:%S')} WIB",
+            subtitle_style,
+        )
+    )
+
+    summary_data = [
+        ["Saldo Awal", format_rupiah(s_awal)],
+        ["Total Pemasukan (+)", format_rupiah(total_in)],
+        ["Total Pengeluaran (-)", format_rupiah(total_out)],
+        ["Saldo Akhir Saat Ini", format_rupiah(s_akhir)],
+    ]
+    t_summary = Table(summary_data, colWidths=[200, 300])
+    t_summary.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FBF8F1")),
+            ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#2A241D")),
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#2A241D")),
+        ])
+    )
+    elements.append(t_summary)
+    elements.append(Spacer(1, 15))
+
+    table_data = [
+        ["Tanggal", "Waktu", "Kategori", "Keterangan", "Jenis", "Nominal"]
+    ]
+    for idx, row in df_pdf.iterrows():
+        table_data.append([
+            str(row["tanggal"]),
+            str(row["waktu"]),
+            str(row["kategori"]),
+            str(row["keterangan"]),
+            str(row["jenis"]).upper(),
+            format_rupiah(row["jumlah"]),
+        ])
+
+    t_tx = Table(table_data, colWidths=[65, 45, 80, 150, 60, 100])
+    t_tx.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2A241D")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#FFC23D")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#2A241D")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9F9F9")]),
+        ])
+    )
+    elements.append(t_tx)
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
 # ==========================================
-# 3. HEADER VINTAGE & CALCULATION
+# 3. HEADER & KALKULASI DATA
 # ==========================================
 st.markdown(
     """
@@ -370,7 +472,7 @@ if not df.empty:
 tab1, tab2, tab3 = st.tabs(["Dashboard", "Transaksi", "Input"])
 
 # ------------------------------------------
-# TAB 1: DASHBOARD (MOBILE OPTIMIZED)
+# TAB 1: DASHBOARD
 # ------------------------------------------
 with tab1:
     st.markdown(
@@ -414,7 +516,7 @@ with tab1:
         st.pyplot(fig)
 
 # ------------------------------------------
-# TAB 2: TRANSAKSI & RIWAYAT
+# TAB 2: TRANSAKSI & CETAK PDF
 # ------------------------------------------
 with tab2:
     new_saldo_awal = st.number_input(
@@ -437,6 +539,18 @@ with tab2:
     )
 
     if not df.empty:
+        # TOMBOL DOWNLOAD LAPORAN PDF
+        pdf_bytes = generate_pdf(
+            df, saldo_awal_db, total_masuk, total_keluar, saldo_saat_ini
+        )
+        st.download_button(
+            label="📄 CETAK / DOWNLOAD LAPORAN PDF",
+            data=pdf_bytes,
+            file_name=f"Laporan_Buku_Kas_{datetime.now(WIB).strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+        )
+
+        st.caption("--- DAFTAR TRANSAKSI ---")
         opsi_tgl = ["Semua tanggal"] + sorted(
             list(df["tanggal"].unique()), reverse=True
         )
@@ -491,7 +605,6 @@ with tab3:
         "Lainnya",
     ]
 
-    # Ambil Waktu Real-Time WIB Saat Ini (UTC+7)
     now_wib = datetime.now(WIB)
 
     with st.form("form_tx", clear_on_submit=True):
