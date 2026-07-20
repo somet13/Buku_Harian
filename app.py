@@ -17,7 +17,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS DESAIN (MOBILE OPTIMIZED)
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS DESAIN (MOBILE FRIENDLY)
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -33,11 +33,11 @@ st.markdown(
 
     /* Background & Container Utama */
     .stApp {
-        background-color: #EAE4D6 !important;
+        background-color: #EAE4D6;
         max-width: 100% !important;
         padding: 5px !important;
-        font-family: 'IBM Plex Mono', monospace !important;
-        color: #2A241D !important;
+        font-family: 'IBM Plex Mono', monospace;
+        color: #2A241D;
     }
     
     .block-container {
@@ -73,59 +73,47 @@ st.markdown(
         font-weight: 700;
     }
 
-    /* ==========================================
-       TARGET PERBAIKAN TAB NAVIGASI (FORCE OVERRIDE MOBILE)
-       ========================================== */
-    
-    /* Wrapper Baris Tab Navigasi */
-    div[data-baseweb="tab-highlight"] {
-        display: none !important; /* Sembunyikan garis merah bawaan */
-    }
-
-    div[data-baseweb="tab-list"] {
+    /* KUSTOMISASI TAB NAVIGASI TEGAS UNTUK MOBILE */
+    div[data-testid="stTabs"] [data-baseweb="tab-list"] {
         gap: 6px !important;
         background-color: transparent !important;
+        padding: 4px 0 !important;
         display: flex !important;
         width: 100% !important;
-        padding: 0 !important;
-        border: none !important;
     }
 
-    /* Target Semua Tombol Tab (Kondisi Normal / Tidak Aktif) */
-    button[data-baseweb="tab"] {
-        flex: 1 1 0% !important;
-        height: 50px !important;
-        background-color: #D3C8B2 !important; /* Warna Krem Cokelat Gelap */
-        border: 2px solid #2A241D !important;   /* Bingkai Hitam Tebal */
+    div[data-testid="stTabs"] [data-baseweb="tab"] {
+        flex: 1 !important;
+        height: 48px !important;
+        background-color: #D3C8B2 !important;
+        border: 2px solid #2A241D !important;
         border-radius: 8px !important;
+        padding: 0px 4px !important;
         margin: 0 !important;
-        padding: 0 !important;
-        cursor: pointer !important;
     }
 
-    /* Teks di Dalam Tab Tidak Aktif */
-    button[data-baseweb="tab"] *, 
-    button[data-baseweb="tab"] p, 
-    button[data-baseweb="tab"] span {
-        color: #2A241D !important;            /* Teks Hitam Pekat */
+    div[data-testid="stTabs"] [data-baseweb="tab"] p {
+        color: #2A241D !important;
         font-family: 'Space Mono', monospace !important;
-        font-size: 13px !important;           /* Ukuran Font Jelas */
-        font-weight: 700 !important;          /* Seratus Persen BOLD */
+        font-size: 13px !important;
+        font-weight: 700 !important;
         text-transform: uppercase !important;
+        text-align: center !important;
+        margin: 0 !important;
     }
 
-    /* Target Khusus Tab yang SEDANG AKTIF (Dipilih) */
-    button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #2A241D !important; /* Latar Belakang HITAM PEKAT */
+    div[data-testid="stTabs"] [aria-selected="true"] {
+        background-color: #2A241D !important;
         border: 2px solid #2A241D !important;
     }
 
-    /* Teks di Dalam Tab AKTIF */
-    button[data-baseweb="tab"][aria-selected="true"] *, 
-    button[data-baseweb="tab"][aria-selected="true"] p, 
-    button[data-baseweb="tab"][aria-selected="true"] span {
-        color: #FFC23D !important;            /* Teks KUNING EMAS MENYALA */
+    div[data-testid="stTabs"] [aria-selected="true"] p {
+        color: #FFC23D !important;
         font-weight: 700 !important;
+    }
+
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+        display: none !important;
     }
 
     /* Banner Saldo Utama */
@@ -150,7 +138,7 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* Card Ringkasan Stacked untuk HP */
+    /* Grid Ringkasan */
     .stat-card {
         background: #FBF8F1;
         border: 2px solid #2A241D;
@@ -213,7 +201,6 @@ st.markdown(
         color: #2A241D !important;
     }
     
-    /* Tombol Utama & Download PDF */
     .stButton>button, .stDownloadButton>button {
         background-color: #2A241D !important;
         color: #FFC23D !important;
@@ -222,7 +209,7 @@ st.markdown(
         font-weight: 700 !important;
         border-radius: 6px !important;
         width: 100%;
-        padding: 12px !important;
+        padding: 10px !important;
         margin-top: 5px;
     }
 </style>
