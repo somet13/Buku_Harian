@@ -17,7 +17,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS DESAIN (MOBILE FRIENDLY)
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -31,20 +31,12 @@ st.markdown(
 <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
-    /* Background & Container Utama */
     .stApp {
         background-color: #EAE4D6;
-        max-width: 100% !important;
-        padding: 5px !important;
+        max-width: 480px;
+        margin: 0 auto;
         font-family: 'IBM Plex Mono', monospace;
         color: #2A241D;
-    }
-    
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
     }
 
     /* Header Struk Retro */
@@ -55,12 +47,12 @@ st.markdown(
         border: 2px solid #2A241D;
         border-bottom: 2px dashed #2A241D;
         border-radius: 8px 8px 0 0;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
     .app-title {
         font-family: 'Space Mono', monospace;
         font-weight: 700;
-        font-size: 22px;
+        font-size: 20px;
         letter-spacing: 2px;
         color: #2A241D;
         margin: 0;
@@ -70,97 +62,45 @@ st.markdown(
         color: #6B6151;
         letter-spacing: 1px;
         margin-top: 4px;
-        font-weight: 700;
-    }
-
-    /* KUSTOMISASI TAB NAVIGASI TEGAS UNTUK MOBILE */
-    div[data-testid="stTabs"] [data-baseweb="tab-list"] {
-        gap: 6px !important;
-        background-color: transparent !important;
-        padding: 4px 0 !important;
-        display: flex !important;
-        width: 100% !important;
-    }
-
-    div[data-testid="stTabs"] [data-baseweb="tab"] {
-        flex: 1 !important;
-        height: 48px !important;
-        background-color: #D3C8B2 !important;
-        border: 2px solid #2A241D !important;
-        border-radius: 8px !important;
-        padding: 0px 4px !important;
-        margin: 0 !important;
-    }
-
-    div[data-testid="stTabs"] [data-baseweb="tab"] p {
-        color: #2A241D !important;
-        font-family: 'Space Mono', monospace !important;
-        font-size: 13px !important;
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        text-align: center !important;
-        margin: 0 !important;
-    }
-
-    div[data-testid="stTabs"] [aria-selected="true"] {
-        background-color: #2A241D !important;
-        border: 2px solid #2A241D !important;
-    }
-
-    div[data-testid="stTabs"] [aria-selected="true"] p {
-        color: #FFC23D !important;
-        font-weight: 700 !important;
-    }
-
-    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
-        display: none !important;
+        font-weight: 600;
     }
 
     /* Banner Saldo Utama */
     .saldo-banner {
         background: #2A241D;
         color: #FFC23D;
-        padding: 14px;
-        border-radius: 8px;
+        padding: 16px;
+        border-radius: 6px;
         text-align: center;
         font-family: 'Space Mono', monospace;
-        margin: 10px 0;
+        margin: 12px 0;
     }
     .saldo-banner-title {
         font-size: 11px;
         color: #D3C8B2;
         letter-spacing: 1px;
-        font-weight: 700;
     }
     .saldo-banner-value {
-        font-size: 22px;
+        font-size: 24px;
         font-weight: 700;
         margin-top: 4px;
     }
 
-    /* Grid Ringkasan */
+    /* Card Stat Ringkasan Clean */
     .stat-card {
         background: #FBF8F1;
-        border: 2px solid #2A241D;
-        border-left: 5px solid #2A241D;
-        padding: 10px;
+        border: 1.5px solid #2A241D;
+        border-left: 4px solid #2A241D;
+        padding: 10px 12px;
         border-radius: 6px;
         margin-bottom: 8px;
     }
     .stat-card.in { border-left-color: #1E7A4C; }
     .stat-card.out { border-left-color: #C2402A; }
-    .stat-label {
-        font-size: 11px;
-        color: #6B6151;
-        font-weight: 700;
-    }
-    .stat-value {
-        font-size: 15px;
-        font-weight: 700;
-        margin-top: 2px;
-    }
+    .stat-label { font-size: 11px; color: #6B6151; }
+    .stat-value { font-size: 16px; font-weight: 700; margin-top: 2px; }
 
-    /* Transaksi Item Card */
+    /* Item Transaksi Struk */
     .tx-item {
         background: #FBF8F1;
         border: 1.5px solid #2A241D;
@@ -173,44 +113,26 @@ st.markdown(
         font-weight: 700;
         color: #2A241D;
         background-color: #EAE4D6;
-        padding: 3px 6px;
+        padding: 2px 6px;
         border-radius: 4px;
     }
-    .tx-desc { 
-        font-size: 14px;
-        font-weight: 700; 
-        color: #2A241D;
-        margin-top: 4px;
-    }
-    .tx-cat { 
-        font-size: 10px;
-        color: #2A241D; 
-        border: 1px solid #2A241D; 
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-weight: 700;
-    }
-    .tx-amount-masuk { color: #1E7A4C; font-weight: 700; font-size: 15px; }
-    .tx-amount-keluar { color: #C2402A; font-weight: 700; font-size: 15px; }
-    .tx-saldo { font-size: 11px; color: #6B6151; text-align: right; margin-top: 4px; font-weight: 600; }
+    .tx-desc { font-size: 13px; font-weight: 600; color: #2A241D; margin-top: 4px; }
+    .tx-cat { font-size: 10px; color: #6B6151; border: 1px solid #D3C8B2; padding: 1px 4px; border-radius: 3px; }
+    .tx-amount-masuk { color: #1E7A4C; font-weight: 700; font-size: 14px; }
+    .tx-amount-keluar { color: #C2402A; font-weight: 700; font-size: 14px; }
+    .tx-saldo { font-size: 11px; color: #6B6151; text-align: right; margin-top: 2px; }
 
-    /* Label Input */
-    .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label, .stTimeInput label, .stRadio label {
-        font-size: 14px !important;
-        font-weight: 700 !important;
-        color: #2A241D !important;
-    }
-    
+    /* Button Retro Style */
     .stButton>button, .stDownloadButton>button {
         background-color: #2A241D !important;
         color: #FFC23D !important;
         font-family: 'Space Mono', monospace !important;
-        font-size: 14px !important;
+        font-size: 13px !important;
         font-weight: 700 !important;
         border-radius: 6px !important;
         width: 100%;
-        padding: 10px !important;
-        margin-top: 5px;
+        padding: 8px !important;
+        border: None !important;
     }
 </style>
 """,
@@ -225,8 +147,21 @@ except Exception:
 
 
 # ==========================================
-# 2. DATABASE & FUNGSI AKSI
+# 2. INTEGRASI DATA DARI GOOGLE SHEETS (CLOUD RECOVERY)
 # ==========================================
+def fetch_from_sheets():
+    """Mengambil seluruh data transaksi dari Google Sheets jika SQLite kosong/ter-reset"""
+    if API_URL and "script.google.com" in API_URL:
+        try:
+            res = requests.get(API_URL, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                return data
+        except Exception:
+            pass
+    return None
+
+
 def get_db():
     return sqlite3.connect("buku_kas.db")
 
@@ -236,7 +171,7 @@ def init_db():
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS transaksi (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             tanggal TEXT,
             waktu TEXT,
             kategori TEXT,
@@ -258,12 +193,52 @@ def init_db():
 init_db()
 
 
+def sync_db_with_sheets():
+    """Melakukan sinkronisasi otomatis dari Google Sheets ke SQLite jika terjadi reboot server"""
+    sheets_data = fetch_from_sheets()
+    if sheets_data and isinstance(sheets_data, dict):
+        txs = sheets_data.get("transaksi", [])
+        saldo_awal = sheets_data.get("saldo_awal", 200000000.0)
+
+        conn = get_db()
+        c = conn.cursor()
+        
+        # Simpan Saldo Awal
+        c.execute("REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)", (float(saldo_awal),))
+        
+        # Masukkan Transaksi dari Google Sheets yang belum ada di SQLite
+        for item in txs:
+            try:
+                tx_id = int(item.get("id"))
+                tgl = str(item.get("tanggal", ""))
+                waktu = str(item.get("waktu", ""))
+                kategori = str(item.get("kategori", ""))
+                keterangan = str(item.get("keterangan", ""))
+                jenis = str(item.get("jenis", "")).lower().strip()
+                jumlah = float(item.get("jumlah", 0))
+
+                c.execute(
+                    "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                )
+            except Exception:
+                continue
+        conn.commit()
+        conn.close()
+
+
 def load_data():
     conn = get_db()
-    df = pd.read_sql_query(
-        "SELECT * FROM transaksi ORDER BY id ASC", conn
-    )
+    df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
+
+    # Jika SQLite kosong (baru ter-reset), lakukan sinkronisasi ulang dari Google Sheets
+    if df.empty and API_URL:
+        sync_db_with_sheets()
+        conn = get_db()
+        df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
+        conn.close()
+
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
@@ -281,6 +256,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
+    # Kirim ke Google Sheets
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -304,6 +280,14 @@ def delete_data(tx_id):
     c.execute("DELETE FROM transaksi WHERE id = ?", (tx_id,))
     conn.commit()
     conn.close()
+
+    # Kirim perintah hapus ke Google Sheets jika didukung
+    if API_URL and "script.google.com" in API_URL:
+        try:
+            payload = {"action": "DELETE", "id": tx_id}
+            requests.post(API_URL, json=payload, timeout=5)
+        except Exception:
+            pass
 
 
 def get_saldo_awal():
@@ -340,7 +324,7 @@ def format_rupiah(n):
     return f"Rp {float(n or 0):,.0f}".replace(",", ".")
 
 
-# FUNGSI MEMBUAT LAPORAN PDF
+# FUNGSI CETAK PDF
 def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -539,7 +523,6 @@ with tab2:
     )
 
     if not df.empty:
-        # TOMBOL DOWNLOAD LAPORAN PDF
         pdf_bytes = generate_pdf(
             df, saldo_awal_db, total_masuk, total_keluar, saldo_saat_ini
         )
@@ -608,7 +591,7 @@ with tab3:
     now_wib = datetime.now(WIB)
 
     with st.form("form_tx", clear_on_submit=True):
-        tanggal = st.date_input("Tanggal Transaksi", value=now_wib.date())
+        tanggal = st.date_input("Tanggal Tanggal", value=now_wib.date())
         jam = st.time_input("Waktu Transaksi (WIB)", value=now_wib.time())
 
         kategori = st.selectbox("Kategori", kategori_list)
