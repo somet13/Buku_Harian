@@ -153,7 +153,7 @@ except Exception:
 def fetch_from_sheets():
     if API_URL and "script.google.com" in API_URL:
         try:
-            res = requests.get(API_URL, timeout=5)
+            res = requests.get(API_URL, timeout=4)
             if res.status_code == 200:
                 return res.json()
         except Exception:
@@ -215,7 +215,7 @@ def sync_db_with_sheets():
     sheets_data = fetch_from_sheets()
     if sheets_data and isinstance(sheets_data, dict):
         txs = sheets_data.get("transaksi", [])
-        if isinstance(txs, list):
+        if isinstance(txs, list) and len(txs) > 0:
             conn = get_db()
             c = conn.cursor()
             c.execute("DELETE FROM transaksi")
@@ -251,7 +251,7 @@ def load_data():
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
 
-        # KALKULASI SALDO BERJALAN KONTINU SANGAT PRESISI
+        # KALKULASI SALDO BERJALAN KONTINU
         running_saldo = 0.0
         saldos = []
         for _, row in df.iterrows():
@@ -272,6 +272,8 @@ def format_rupiah(n):
 
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
+    
+    # 1. Simpan langsung ke database lokal SQLite agar data seketika muncul
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -281,6 +283,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
+    # 2. Kirim cadangan ke Google Sheets di background
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -293,7 +296,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "jenis": jenis,
                 "jumlah": format_rupiah(jumlah),
             }
-            requests.post(API_URL, json=payload, timeout=5)
+            requests.post(API_URL, json=payload, timeout=3)
         except Exception:
             pass
 
@@ -308,7 +311,7 @@ def delete_data(tx_id):
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
-            requests.post(API_URL, json=payload, timeout=5)
+            requests.post(API_URL, json=payload, timeout=3)
         except Exception:
             pass
 
@@ -424,7 +427,7 @@ df = load_data()
 tab1, tab2, tab3 = st.tabs(["Dashboard", "Transaksi", "Input"])
 
 # ------------------------------------------
-# TAB 1: DASHBOARD (RINGKASAN TOTAL)
+# TAB 1: DASHBOARD
 # ------------------------------------------
 with tab1:
     total_masuk = 0.0
@@ -497,8 +500,6 @@ with tab2:
             total_keluar_hari = float(
                 df_filtered[df_filtered["jenis"] == "keluar"]["jumlah"].sum()
             )
-            
-            # Saldo Akhir Hari Ini = Saldo Terakhir dari baris transaksi pada tanggal ini
             saldo_akhir_hari = float(df_filtered.iloc[-1]["saldo"])
 
             st.markdown(
