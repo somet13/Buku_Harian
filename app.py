@@ -175,7 +175,6 @@ def clean_date_str(d_str):
     """Merapikan format tanggal jika berbentuk ISO/GMT"""
     d_str = str(d_str or "").strip()
     if "GMT" in d_str or len(d_str) > 10:
-        # Cari pola YYYY-MM-DD
         m = re.search(r"\d{4}-\d{2}-\d{2}", d_str)
         if m:
             return m.group(0)
@@ -223,42 +222,43 @@ init_db()
 
 
 def sync_db_with_sheets():
-    """Melakukan sinkronisasi otomatis dari Google Sheets"""
+    """Melakukan sinkronisasi otomatis dari Google Sheets secara aman"""
     sheets_data = fetch_from_sheets()
     if sheets_data and isinstance(sheets_data, dict):
         txs = sheets_data.get("transaksi", [])
-        raw_saldo = sheets_data.get("saldo_awal", 200000000.0)
-        saldo_awal = clean_amount(raw_saldo)
+        raw_saldo = sheets_data.get("saldo_awal", None)
 
         conn = get_db()
         c = conn.cursor()
 
-        # Simpan Saldo Awal (Gunakan nilai dari Sheets jika > 0)
-        if saldo_awal > 0:
-            c.execute(
-                "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
-                (saldo_awal,),
-            )
-
-        # Kosongkan tabel lokal, isi ulang persis sama dengan Sheets
-        c.execute("DELETE FROM transaksi")
-
-        for item in txs:
-            try:
-                tx_id = int(item.get("id"))
-                tgl = clean_date_str(item.get("tanggal", ""))
-                waktu = clean_time_str(item.get("waktu", ""))
-                kategori = str(item.get("kategori", ""))
-                keterangan = str(item.get("keterangan", ""))
-                jenis = str(item.get("jenis", "")).lower().strip()
-                jumlah = clean_amount(item.get("jumlah", 0))
-
+        # Update saldo awal jika dikirimkan angka valid (>0)
+        if raw_saldo is not None:
+            saldo_awal_val = clean_amount(raw_saldo)
+            if saldo_awal_val > 0:
                 c.execute(
-                    "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                    "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
+                    (saldo_awal_val,),
                 )
-            except Exception:
-                continue
+
+        # Hanya hapus dan update jika ada respon data transaksi valid dari Sheets
+        if isinstance(txs, list):
+            c.execute("DELETE FROM transaksi")
+            for item in txs:
+                try:
+                    tx_id = int(item.get("id"))
+                    tgl = clean_date_str(item.get("tanggal", ""))
+                    waktu = clean_time_str(item.get("waktu", ""))
+                    kategori = str(item.get("kategori", ""))
+                    keterangan = str(item.get("keterangan", ""))
+                    jenis = str(item.get("jenis", "")).lower().strip()
+                    jumlah = clean_amount(item.get("jumlah", 0))
+
+                    c.execute(
+                        "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                    )
+                except Exception:
+                    continue
         conn.commit()
         conn.close()
 
@@ -347,7 +347,7 @@ def set_saldo_awal(val):
         try:
             payload = {
                 "action": "UPDATE_SALDO_AWAL",
-                "saldo_awal": float(val),
+                "saldo_awal": format_rupiah(val),
             }
             requests.post(API_URL, json=payload, timeout=5)
         except Exception:
