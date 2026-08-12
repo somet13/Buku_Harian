@@ -18,7 +18,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS AWAL (RETRO CLEAN)
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS AWAL
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -151,7 +151,6 @@ except Exception:
 # 2. HELPER & INTEGRASI DATA GOOGLE SHEETS
 # ==========================================
 def fetch_from_sheets():
-    """Mengambil seluruh data transaksi dari Google Sheets"""
     if API_URL and "script.google.com" in API_URL:
         try:
             res = requests.get(API_URL, timeout=5)
@@ -163,7 +162,6 @@ def fetch_from_sheets():
 
 
 def clean_amount(val):
-    """Mengubah teks seperti 'Rp 30.000' atau angka biasa menjadi float"""
     if isinstance(val, (int, float)):
         return float(val)
     val_str = str(val)
@@ -172,7 +170,6 @@ def clean_amount(val):
 
 
 def clean_date_str(d_str):
-    """Merapikan format tanggal jika berbentuk ISO/GMT"""
     d_str = str(d_str or "").strip()
     if "GMT" in d_str or len(d_str) > 10:
         m = re.search(r"\d{4}-\d{2}-\d{2}", d_str)
@@ -182,7 +179,6 @@ def clean_date_str(d_str):
 
 
 def clean_time_str(t_str):
-    """Merapikan format jam jika berbentuk ISO/GMT"""
     t_str = str(t_str or "").strip()
     m = re.search(r"\d{2}:\d{2}", t_str)
     if m:
@@ -208,12 +204,6 @@ def init_db():
             jumlah REAL
         )
     """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS pengaturan (
-            key TEXT PRIMARY KEY,
-            val REAL
-        )
-    """)
     conn.commit()
     conn.close()
 
@@ -222,26 +212,12 @@ init_db()
 
 
 def sync_db_with_sheets():
-    """Melakukan sinkronisasi otomatis dari Google Sheets secara aman"""
     sheets_data = fetch_from_sheets()
     if sheets_data and isinstance(sheets_data, dict):
         txs = sheets_data.get("transaksi", [])
-        raw_saldo = sheets_data.get("saldo_awal", None)
-
-        conn = get_db()
-        c = conn.cursor()
-
-        # Update saldo awal jika dikirimkan angka valid (>0)
-        if raw_saldo is not None:
-            saldo_awal_val = clean_amount(raw_saldo)
-            if saldo_awal_val > 0:
-                c.execute(
-                    "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
-                    (saldo_awal_val,),
-                )
-
-        # Hanya hapus dan update jika ada respon data transaksi valid dari Sheets
         if isinstance(txs, list):
+            conn = get_db()
+            c = conn.cursor()
             c.execute("DELETE FROM transaksi")
             for item in txs:
                 try:
@@ -259,8 +235,8 @@ def sync_db_with_sheets():
                     )
                 except Exception:
                     continue
-        conn.commit()
-        conn.close()
+            conn.commit()
+            conn.close()
 
 
 def load_data():
@@ -274,6 +250,19 @@ def load_data():
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
+
+        # KALKULASI SALDO BERJALAN KONTINU SANGAT PRESISI
+        running_saldo = 0.0
+        saldos = []
+        for _, row in df.iterrows():
+            amt = float(row["jumlah"])
+            if row["jenis"] == "masuk":
+                running_saldo += amt
+            else:
+                running_saldo -= amt
+            saldos.append(running_saldo)
+        df["saldo"] = saldos
+
     return df
 
 
@@ -324,36 +313,6 @@ def delete_data(tx_id):
             pass
 
 
-def get_saldo_awal():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT val FROM pengaturan WHERE key = 'saldo_awal'")
-    row = c.fetchone()
-    conn.close()
-    return float(row[0]) if row else 200000000.0
-
-
-def set_saldo_awal(val):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
-        (float(val),),
-    )
-    conn.commit()
-    conn.close()
-
-    if API_URL and "script.google.com" in API_URL:
-        try:
-            payload = {
-                "action": "UPDATE_SALDO_AWAL",
-                "saldo_awal": format_rupiah(val),
-            }
-            requests.post(API_URL, json=payload, timeout=5)
-        except Exception:
-            pass
-
-
 # FUNGSI CETAK PDF
 def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     buffer = io.BytesIO()
@@ -394,10 +353,10 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     )
 
     summary_data = [
-        ["Saldo Awal", format_rupiah(s_awal)],
+        ["Saldo Awal Periode", format_rupiah(s_awal)],
         ["Total Pemasukan (+)", format_rupiah(total_in)],
         ["Total Pengeluaran (-)", format_rupiah(total_out)],
-        ["Saldo Akhir Saat Ini", format_rupiah(s_akhir)],
+        ["Saldo Akhir Periode", format_rupiah(s_akhir)],
     ]
     t_summary = Table(summary_data, colWidths=[200, 300])
     t_summary.setStyle(
@@ -445,7 +404,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
 
 
 # ==========================================
-# 3. HEADER & KALKULASI DATA
+# 3. HEADER
 # ==========================================
 st.markdown(
     """
@@ -458,27 +417,6 @@ st.markdown(
 )
 
 df = load_data()
-saldo_awal_db = get_saldo_awal()
-
-total_masuk = 0.0
-total_keluar = 0.0
-saldo_saat_ini = saldo_awal_db
-
-if not df.empty:
-    total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
-    total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum())
-    saldo_saat_ini = saldo_awal_db + total_masuk - total_keluar
-
-    running = saldo_awal_db
-    saldos = []
-    for idx, row in df.iterrows():
-        amt = float(row["jumlah"])
-        if row["jenis"] == "masuk":
-            running += amt
-        else:
-            running -= amt
-        saldos.append(running)
-    df["saldo"] = saldos
 
 # ==========================================
 # 4. TAB NAVIGASI UTAMA
@@ -486,25 +424,30 @@ if not df.empty:
 tab1, tab2, tab3 = st.tabs(["Dashboard", "Transaksi", "Input"])
 
 # ------------------------------------------
-# TAB 1: DASHBOARD
+# TAB 1: DASHBOARD (RINGKASAN TOTAL)
 # ------------------------------------------
 with tab1:
+    total_masuk = 0.0
+    total_keluar = 0.0
+    saldo_akhir_total = 0.0
+
+    if not df.empty:
+        total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
+        total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum())
+        saldo_akhir_total = float(df.iloc[-1]["saldo"])
+
     st.markdown(
         f"""
     <div class="saldo-banner">
-        <div class="saldo-banner-title">SALDO AKHIR SAAT INI</div>
-        <div class="saldo-banner-value">{format_rupiah(saldo_saat_ini)}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Saldo Awal Periode</div>
-        <div class="stat-value">{format_rupiah(saldo_awal_db)}</div>
+        <div class="saldo-banner-title">SALDO KAS SAAT INI</div>
+        <div class="saldo-banner-value">{format_rupiah(saldo_akhir_total)}</div>
     </div>
     <div class="stat-card in">
-        <div class="stat-label">Total Pemasukan (+)</div>
+        <div class="stat-label">Total Pemasukan Keseluruhan (+)</div>
         <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(total_masuk)}</div>
     </div>
     <div class="stat-card out">
-        <div class="stat-label">Total Pengeluaran (-)</div>
+        <div class="stat-label">Total Pengeluaran Keseluruhan (-)</div>
         <div class="stat-value" style="color:#C2402A;">{format_rupiah(total_keluar)}</div>
     </div>
     """,
@@ -530,51 +473,90 @@ with tab1:
         st.pyplot(fig)
 
 # ------------------------------------------
-# TAB 2: TRANSAKSI & CETAK PDF
+# TAB 2: TRANSAKSI HARIAN
 # ------------------------------------------
 with tab2:
-    new_saldo_awal = st.number_input(
-        "Atur Saldo Awal Periode (Rp):",
-        value=float(saldo_awal_db),
-        step=50000.0,
-    )
-    if new_saldo_awal != saldo_awal_db:
-        set_saldo_awal(new_saldo_awal)
-        st.rerun()
-
-    st.markdown(
-        f"""
-    <div class="saldo-banner">
-        <div class="saldo-banner-title">SALDO AKHIR PERIODE</div>
-        <div class="saldo-banner-value">{format_rupiah(saldo_saat_ini)}</div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
     if not df.empty:
+        opsi_tgl = ["Semua tanggal"] + sorted(
+            list(df["tanggal"].unique()), reverse=True
+        )
+        pilihan_tgl = st.selectbox("Filter Tanggal Transaksi", opsi_tgl)
+
+        if pilihan_tgl != "Semua tanggal":
+            df_filtered = df[df["tanggal"] == pilihan_tgl]
+
+            # Saldo Awal Hari Ini = Saldo Sisa Tepat Sebelum Tanggal Ini
+            df_before = df[df["tanggal"] < pilihan_tgl]
+            saldo_awal_hari = (
+                float(df_before.iloc[-1]["saldo"]) if not df_before.empty else 0.0
+            )
+
+            total_masuk_hari = float(
+                df_filtered[df_filtered["jenis"] == "masuk"]["jumlah"].sum()
+            )
+            total_keluar_hari = float(
+                df_filtered[df_filtered["jenis"] == "keluar"]["jumlah"].sum()
+            )
+            
+            # Saldo Akhir Hari Ini = Saldo Terakhir dari baris transaksi pada tanggal ini
+            saldo_akhir_hari = float(df_filtered.iloc[-1]["saldo"])
+
+            st.markdown(
+                f"""
+            <div class="saldo-banner">
+                <div class="saldo-banner-title">SALDO AKHIR TANGGAL {pilihan_tgl}</div>
+                <div class="saldo-banner-value">{format_rupiah(saldo_akhir_hari)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Saldo Awal (Sisa Sebelum Tanggal Ini)</div>
+                <div class="stat-value">{format_rupiah(saldo_awal_hari)}</div>
+            </div>
+            <div class="stat-card in">
+                <div class="stat-label">Pemasukan Tanggal Ini (+)</div>
+                <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(total_masuk_hari)}</div>
+            </div>
+            <div class="stat-card out">
+                <div class="stat-label">Pengeluaran Tanggal Ini (-)</div>
+                <div class="stat-value" style="color:#C2402A;">{format_rupiah(total_keluar_hari)}</div>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+            df_visible = df_filtered
+        else:
+            saldo_awal_hari = 0.0
+            total_masuk_hari = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
+            total_keluar_hari = float(
+                df[df["jenis"] == "keluar"]["jumlah"].sum()
+            )
+            saldo_akhir_hari = float(df.iloc[-1]["saldo"])
+
+            st.markdown(
+                f"""
+            <div class="saldo-banner">
+                <div class="saldo-banner-title">SALDO KAS SAAT INI (TOTAL)</div>
+                <div class="saldo-banner-value">{format_rupiah(saldo_akhir_hari)}</div>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+            df_visible = df
+
         pdf_bytes = generate_pdf(
-            df, saldo_awal_db, total_masuk, total_keluar, saldo_saat_ini
+            df_visible,
+            saldo_awal_hari,
+            total_masuk_hari,
+            total_keluar_hari,
+            saldo_akhir_hari,
         )
         st.download_button(
             label="📄 CETAK / DOWNLOAD LAPORAN PDF",
             data=pdf_bytes,
-            file_name=f"Laporan_Buku_Kas_{datetime.now(WIB).strftime('%Y%m%d')}.pdf",
+            file_name=f"Laporan_Buku_Kas_{pilihan_tgl}.pdf",
             mime="application/pdf",
         )
 
         st.caption("--- DAFTAR TRANSAKSI ---")
-        opsi_tgl = ["Semua tanggal"] + sorted(
-            list(df["tanggal"].unique()), reverse=True
-        )
-        pilihan_tgl = st.selectbox("Filter Tanggal", opsi_tgl)
-
-        df_visible = (
-            df[df["tanggal"] == pilihan_tgl]
-            if pilihan_tgl != "Semua tanggal"
-            else df
-        )
-
         for idx, row in df_visible.iloc[::-1].iterrows():
             is_masuk = row["jenis"] == "masuk"
             cls_amt = "tx-amount-masuk" if is_masuk else "tx-amount-keluar"
@@ -591,7 +573,7 @@ with tab2:
                     <span class="tx-cat">{row['kategori']}</span>
                     <span class="{cls_amt}">{sign}{format_rupiah(row['jumlah'])}</span>
                 </div>
-                <div class="tx-saldo">Saldo: {format_rupiah(row['saldo'])}</div>
+                <div class="tx-saldo">Saldo Sisa: {format_rupiah(row['saldo'])}</div>
             </div>
             """,
                 unsafe_allow_html=True,
