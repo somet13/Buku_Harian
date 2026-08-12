@@ -1,4 +1,5 @@
 import io
+import re
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
@@ -155,8 +156,7 @@ def fetch_from_sheets():
         try:
             res = requests.get(API_URL, timeout=5)
             if res.status_code == 200:
-                data = res.json()
-                return data
+                return res.json()
         except Exception:
             pass
     return None
@@ -193,19 +193,32 @@ def init_db():
 init_db()
 
 
+def clean_amount(val):
+    """Fungsi pembantu untuk mengubah teks seperti 'Rp 30.000' menjadi angka 30000.0"""
+    if isinstance(val, (int, float)):
+        return float(val)
+    val_str = str(val)
+    digits = re.sub(r"[^\d]", "", val_str)
+    return float(digits) if digits else 0.0
+
+
 def sync_db_with_sheets():
     """Melakukan sinkronisasi otomatis dari Google Sheets ke SQLite jika terjadi reboot server"""
     sheets_data = fetch_from_sheets()
     if sheets_data and isinstance(sheets_data, dict):
         txs = sheets_data.get("transaksi", [])
-        saldo_awal = sheets_data.get("saldo_awal", 200000000.0)
+        raw_saldo = sheets_data.get("saldo_awal", 200000000.0)
+        saldo_awal = clean_amount(raw_saldo)
 
         conn = get_db()
         c = conn.cursor()
-        
+
         # Simpan Saldo Awal
-        c.execute("REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)", (float(saldo_awal),))
-        
+        c.execute(
+            "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
+            (saldo_awal,),
+        )
+
         # Masukkan Transaksi dari Google Sheets yang belum ada di SQLite
         for item in txs:
             try:
@@ -215,7 +228,7 @@ def sync_db_with_sheets():
                 kategori = str(item.get("kategori", ""))
                 keterangan = str(item.get("keterangan", ""))
                 jenis = str(item.get("jenis", "")).lower().strip()
-                jumlah = float(item.get("jumlah", 0))
+                jumlah = clean_amount(item.get("jumlah", 0))
 
                 c.execute(
                     "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -245,6 +258,10 @@ def load_data():
     return df
 
 
+def format_rupiah(n):
+    return f"Rp {float(n or 0):,.0f}".replace(",", ".")
+
+
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
     conn = get_db()
@@ -256,7 +273,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # Kirim ke Google Sheets
+    # Kirim ke Google Sheets dengan format teks "Rp X.XXX"
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -267,7 +284,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "kategori": kategori,
                 "keterangan": keterangan,
                 "jenis": jenis,
-                "jumlah": float(jumlah),
+                "jumlah": format_rupiah(jumlah),  # Ditampilkan sebagai 'Rp XX.XXX' di Sheets
             }
             requests.post(API_URL, json=payload, timeout=5)
         except Exception:
@@ -313,15 +330,11 @@ def set_saldo_awal(val):
         try:
             payload = {
                 "action": "UPDATE_SALDO_AWAL",
-                "saldo_awal": float(val),
+                "saldo_awal": format_rupiah(val),
             }
             requests.post(API_URL, json=payload, timeout=5)
         except Exception:
             pass
-
-
-def format_rupiah(n):
-    return f"Rp {float(n or 0):,.0f}".replace(",", ".")
 
 
 # FUNGSI CETAK PDF
@@ -591,7 +604,7 @@ with tab3:
     now_wib = datetime.now(WIB)
 
     with st.form("form_tx", clear_on_submit=True):
-        tanggal = st.date_input("Tanggal Tanggal", value=now_wib.date())
+        tanggal = st.date_input("Tanggal Transaksi", value=now_wib.date())
         jam = st.time_input("Waktu Transaksi (WIB)", value=now_wib.time())
 
         kategori = st.selectbox("Kategori", kategori_list)
