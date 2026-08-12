@@ -18,7 +18,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS AWAL (RETRO CLEAN)
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -148,7 +148,7 @@ except Exception:
 
 
 # ==========================================
-# 2. INTEGRASI DATA DARI GOOGLE SHEETS (CLOUD DUAL SYNC)
+# 2. HELPER & INTEGRASI DATA GOOGLE SHEETS
 # ==========================================
 def fetch_from_sheets():
     """Mengambil seluruh data transaksi dari Google Sheets"""
@@ -160,6 +160,35 @@ def fetch_from_sheets():
         except Exception:
             pass
     return None
+
+
+def clean_amount(val):
+    """Mengubah teks seperti 'Rp 30.000' atau angka biasa menjadi float"""
+    if isinstance(val, (int, float)):
+        return float(val)
+    val_str = str(val)
+    digits = re.sub(r"[^\d]", "", val_str)
+    return float(digits) if digits else 0.0
+
+
+def clean_date_str(d_str):
+    """Merapikan format tanggal jika berbentuk ISO/GMT"""
+    d_str = str(d_str or "").strip()
+    if "GMT" in d_str or len(d_str) > 10:
+        # Cari pola YYYY-MM-DD
+        m = re.search(r"\d{4}-\d{2}-\d{2}", d_str)
+        if m:
+            return m.group(0)
+    return d_str[:10] if d_str else str(datetime.now(WIB).date())
+
+
+def clean_time_str(t_str):
+    """Merapikan format jam jika berbentuk ISO/GMT"""
+    t_str = str(t_str or "").strip()
+    m = re.search(r"\d{2}:\d{2}", t_str)
+    if m:
+        return m.group(0)
+    return "00:00"
 
 
 def get_db():
@@ -193,17 +222,8 @@ def init_db():
 init_db()
 
 
-def clean_amount(val):
-    """Mengubah teks seperti 'Rp 30.000' menjadi angka 30000.0"""
-    if isinstance(val, (int, float)):
-        return float(val)
-    val_str = str(val)
-    digits = re.sub(r"[^\d]", "", val_str)
-    return float(digits) if digits else 0.0
-
-
 def sync_db_with_sheets():
-    """Melakukan sinkronisasi penuh dari Google Sheets (termasuk jika ada baris yang dihapus di Sheets)"""
+    """Melakukan sinkronisasi otomatis dari Google Sheets"""
     sheets_data = fetch_from_sheets()
     if sheets_data and isinstance(sheets_data, dict):
         txs = sheets_data.get("transaksi", [])
@@ -213,20 +233,21 @@ def sync_db_with_sheets():
         conn = get_db()
         c = conn.cursor()
 
-        # Simpan Saldo Awal
-        c.execute(
-            "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
-            (saldo_awal,),
-        )
+        # Simpan Saldo Awal (Gunakan nilai dari Sheets jika > 0)
+        if saldo_awal > 0:
+            c.execute(
+                "REPLACE INTO pengaturan (key, val) VALUES ('saldo_awal', ?)",
+                (saldo_awal,),
+            )
 
-        # Hapus seluruh transaksi lokal, lalu isi ulang dari Google Sheets agar data yang dihapus di Sheets ikut terhapus di Streamlit
+        # Kosongkan tabel lokal, isi ulang persis sama dengan Sheets
         c.execute("DELETE FROM transaksi")
 
         for item in txs:
             try:
                 tx_id = int(item.get("id"))
-                tgl = str(item.get("tanggal", ""))
-                waktu = str(item.get("waktu", ""))
+                tgl = clean_date_str(item.get("tanggal", ""))
+                waktu = clean_time_str(item.get("waktu", ""))
                 kategori = str(item.get("kategori", ""))
                 keterangan = str(item.get("keterangan", ""))
                 jenis = str(item.get("jenis", "")).lower().strip()
@@ -243,7 +264,6 @@ def sync_db_with_sheets():
 
 
 def load_data():
-    # Selalu lakukan sync dengan Google Sheets saat halaman dimuat/direfresh
     if API_URL:
         sync_db_with_sheets()
 
@@ -272,7 +292,6 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # Kirim ke Google Sheets dengan format teks "Rp X.XXX"
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -328,7 +347,7 @@ def set_saldo_awal(val):
         try:
             payload = {
                 "action": "UPDATE_SALDO_AWAL",
-                "saldo_awal": format_rupiah(val),
+                "saldo_awal": float(val),
             }
             requests.post(API_URL, json=payload, timeout=5)
         except Exception:
