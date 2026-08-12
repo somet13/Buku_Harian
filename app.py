@@ -148,10 +148,10 @@ except Exception:
 
 
 # ==========================================
-# 2. INTEGRASI DATA DARI GOOGLE SHEETS (CLOUD RECOVERY)
+# 2. INTEGRASI DATA DARI GOOGLE SHEETS (CLOUD DUAL SYNC)
 # ==========================================
 def fetch_from_sheets():
-    """Mengambil seluruh data transaksi dari Google Sheets jika SQLite kosong/ter-reset"""
+    """Mengambil seluruh data transaksi dari Google Sheets"""
     if API_URL and "script.google.com" in API_URL:
         try:
             res = requests.get(API_URL, timeout=5)
@@ -194,7 +194,7 @@ init_db()
 
 
 def clean_amount(val):
-    """Fungsi pembantu untuk mengubah teks seperti 'Rp 30.000' menjadi angka 30000.0"""
+    """Mengubah teks seperti 'Rp 30.000' menjadi angka 30000.0"""
     if isinstance(val, (int, float)):
         return float(val)
     val_str = str(val)
@@ -203,7 +203,7 @@ def clean_amount(val):
 
 
 def sync_db_with_sheets():
-    """Melakukan sinkronisasi otomatis dari Google Sheets ke SQLite jika terjadi reboot server"""
+    """Melakukan sinkronisasi penuh dari Google Sheets (termasuk jika ada baris yang dihapus di Sheets)"""
     sheets_data = fetch_from_sheets()
     if sheets_data and isinstance(sheets_data, dict):
         txs = sheets_data.get("transaksi", [])
@@ -219,7 +219,9 @@ def sync_db_with_sheets():
             (saldo_awal,),
         )
 
-        # Masukkan Transaksi dari Google Sheets yang belum ada di SQLite
+        # Hapus seluruh transaksi lokal, lalu isi ulang dari Google Sheets agar data yang dihapus di Sheets ikut terhapus di Streamlit
+        c.execute("DELETE FROM transaksi")
+
         for item in txs:
             try:
                 tx_id = int(item.get("id"))
@@ -231,7 +233,7 @@ def sync_db_with_sheets():
                 jumlah = clean_amount(item.get("jumlah", 0))
 
                 c.execute(
-                    "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
                 )
             except Exception:
@@ -241,16 +243,13 @@ def sync_db_with_sheets():
 
 
 def load_data():
+    # Selalu lakukan sync dengan Google Sheets saat halaman dimuat/direfresh
+    if API_URL:
+        sync_db_with_sheets()
+
     conn = get_db()
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
-
-    # Jika SQLite kosong (baru ter-reset), lakukan sinkronisasi ulang dari Google Sheets
-    if df.empty and API_URL:
-        sync_db_with_sheets()
-        conn = get_db()
-        df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
-        conn.close()
 
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
@@ -284,7 +283,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "kategori": kategori,
                 "keterangan": keterangan,
                 "jenis": jenis,
-                "jumlah": format_rupiah(jumlah),  # Ditampilkan sebagai 'Rp XX.XXX' di Sheets
+                "jumlah": format_rupiah(jumlah),
             }
             requests.post(API_URL, json=payload, timeout=5)
         except Exception:
@@ -298,7 +297,6 @@ def delete_data(tx_id):
     conn.commit()
     conn.close()
 
-    # Kirim perintah hapus ke Google Sheets jika didukung
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
