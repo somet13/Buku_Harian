@@ -148,17 +148,31 @@ except Exception:
 
 
 # ==========================================
-# 2. HELPER & INTEGRASI DATA GOOGLE SHEETS
+# 2. HELPER & INTEGRASI DATABASE LOKAL + GOOGLE SHEETS
 # ==========================================
-def fetch_from_sheets():
-    if API_URL and "script.google.com" in API_URL:
-        try:
-            res = requests.get(API_URL, timeout=4)
-            if res.status_code == 200:
-                return res.json()
-        except Exception:
-            pass
-    return None
+def get_db():
+    return sqlite3.connect("buku_kas.db")
+
+
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS transaksi (
+            id INTEGER PRIMARY KEY,
+            tanggal TEXT,
+            waktu TEXT,
+            kategori TEXT,
+            keterangan TEXT,
+            jenis TEXT,
+            jumlah REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+init_db()
 
 
 def clean_amount(val):
@@ -186,62 +200,54 @@ def clean_time_str(t_str):
     return "00:00"
 
 
-def get_db():
-    return sqlite3.connect("buku_kas.db")
+def fetch_from_sheets():
+    if API_URL and "script.google.com" in API_URL:
+        try:
+            res = requests.get(API_URL, timeout=3)
+            if res.status_code == 200:
+                return res.json()
+        except Exception:
+            pass
+    return None
 
 
-def init_db():
+def sync_from_sheets_if_empty():
+    """Hanya menarik data dari Google Sheets JIKA database lokal SQLite sedang kosong (misal baru reboot)"""
     conn = get_db()
     c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS transaksi (
-            id INTEGER PRIMARY KEY,
-            tanggal TEXT,
-            waktu TEXT,
-            kategori TEXT,
-            keterangan TEXT,
-            jenis TEXT,
-            jumlah REAL
-        )
-    """)
-    conn.commit()
+    c.execute("SELECT COUNT(*) FROM transaksi")
+    count = c.fetchone()[0]
     conn.close()
 
+    if count == 0 and API_URL:
+        sheets_data = fetch_from_sheets()
+        if sheets_data and isinstance(sheets_data, dict):
+            txs = sheets_data.get("transaksi", [])
+            if isinstance(txs, list) and len(txs) > 0:
+                conn = get_db()
+                c = conn.cursor()
+                for item in txs:
+                    try:
+                        tx_id = int(item.get("id"))
+                        tgl = clean_date_str(item.get("tanggal", ""))
+                        waktu = clean_time_str(item.get("waktu", ""))
+                        kategori = str(item.get("kategori", ""))
+                        keterangan = str(item.get("keterangan", ""))
+                        jenis = str(item.get("jenis", "")).lower().strip()
+                        jumlah = clean_amount(item.get("jumlah", 0))
 
-init_db()
-
-
-def sync_db_with_sheets():
-    sheets_data = fetch_from_sheets()
-    if sheets_data and isinstance(sheets_data, dict):
-        txs = sheets_data.get("transaksi", [])
-        if isinstance(txs, list) and len(txs) > 0:
-            conn = get_db()
-            c = conn.cursor()
-            c.execute("DELETE FROM transaksi")
-            for item in txs:
-                try:
-                    tx_id = int(item.get("id"))
-                    tgl = clean_date_str(item.get("tanggal", ""))
-                    waktu = clean_time_str(item.get("waktu", ""))
-                    kategori = str(item.get("kategori", ""))
-                    keterangan = str(item.get("keterangan", ""))
-                    jenis = str(item.get("jenis", "")).lower().strip()
-                    jumlah = clean_amount(item.get("jumlah", 0))
-
-                    c.execute(
-                        "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
-                    )
-                except Exception:
-                    continue
-            conn.commit()
-            conn.close()
+                        c.execute(
+                            "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                        )
+                    except Exception:
+                        continue
+                conn.commit()
+                conn.close()
 
 
 def load_data():
-    if API_URL:
-        sync_db_with_sheets()
+    sync_from_sheets_if_empty()
 
     conn = get_db()
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
@@ -272,8 +278,8 @@ def format_rupiah(n):
 
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
-    
-    # 1. Simpan langsung ke database lokal SQLite agar data seketika muncul
+
+    # 1. Simpan LANGSUNG ke Database Lokal SQLite (Garansi Langsung Tampil)
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -283,7 +289,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # 2. Kirim cadangan ke Google Sheets di background
+    # 2. Kirim Cadangan ke Google Sheets di Background
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -296,7 +302,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "jenis": jenis,
                 "jumlah": format_rupiah(jumlah),
             }
-            requests.post(API_URL, json=payload, timeout=3)
+            requests.post(API_URL, json=payload, timeout=2)
         except Exception:
             pass
 
@@ -311,7 +317,7 @@ def delete_data(tx_id):
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
-            requests.post(API_URL, json=payload, timeout=3)
+            requests.post(API_URL, json=payload, timeout=2)
         except Exception:
             pass
 
@@ -488,7 +494,6 @@ with tab2:
         if pilihan_tgl != "Semua tanggal":
             df_filtered = df[df["tanggal"] == pilihan_tgl]
 
-            # Saldo Awal Hari Ini = Saldo Sisa Tepat Sebelum Tanggal Ini
             df_before = df[df["tanggal"] < pilihan_tgl]
             saldo_awal_hari = (
                 float(df_before.iloc[-1]["saldo"]) if not df_before.empty else 0.0
@@ -587,7 +592,7 @@ with tab2:
         st.info("Belum ada transaksi.")
 
 # ------------------------------------------
-# TAB 3: INPUT TRANSAKSI (REAL-TIME WIB)
+# TAB 3: INPUT TRANSAKSI
 # ------------------------------------------
 with tab3:
     st.caption("— FORM INPUT TRANSAKSI —")
