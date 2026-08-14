@@ -725,4 +725,4 @@ with tab3:
                 st.success(f"Transaksi Berhasil Dicatat ({tgl_str} {waktu_str} WIB) ✓")
                 st.rerun()
 
-di kode ini tidak usah pake id.. cukup pake nama saja 
+
