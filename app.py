@@ -40,7 +40,6 @@ st.markdown(
         color: #2A241D;
     }
 
-    /* Header Struk Retro */
     .app-header {
         text-align: center;
         padding: 16px 8px;
@@ -66,7 +65,6 @@ st.markdown(
         font-weight: 600;
     }
 
-    /* Banner Saldo Utama */
     .saldo-banner {
         background: #2A241D;
         color: #FFC23D;
@@ -87,7 +85,6 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* Card Stat Ringkasan Clean */
     .stat-card {
         background: #FBF8F1;
         border: 1.5px solid #2A241D;
@@ -101,7 +98,6 @@ st.markdown(
     .stat-label { font-size: 11px; color: #6B6151; }
     .stat-value { font-size: 16px; font-weight: 700; margin-top: 2px; }
 
-    /* Item Transaksi Struk */
     .tx-item {
         background: #FBF8F1;
         border: 1.5px solid #2A241D;
@@ -123,7 +119,6 @@ st.markdown(
     .tx-amount-keluar { color: #C2402A; font-weight: 700; font-size: 14px; }
     .tx-saldo { font-size: 11px; color: #6B6151; text-align: right; margin-top: 2px; }
 
-    /* Button Retro Style */
     .stButton>button, .stDownloadButton>button {
         background-color: #2A241D !important;
         color: #FFC23D !important;
@@ -140,7 +135,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# AMBIL URL GOOGLE SHEETS DARI SECRETS
 try:
     API_URL = st.secrets["connections"]["gsheets"]["api_url"]
 except Exception:
@@ -148,7 +142,7 @@ except Exception:
 
 
 # ==========================================
-# 2. HELPER & INTEGRASI DATABASE LOKAL + GOOGLE SHEETS
+# 2. DATABASE LOKAL + SINKRONISASI MANUSIAWI
 # ==========================================
 def get_db():
     return sqlite3.connect("buku_kas.db")
@@ -203,7 +197,7 @@ def clean_time_str(t_str):
 def fetch_from_sheets():
     if API_URL and "script.google.com" in API_URL:
         try:
-            res = requests.get(API_URL, timeout=6)
+            res = requests.get(API_URL, timeout=5)
             if res.status_code == 200:
                 return res.json()
         except Exception:
@@ -211,35 +205,32 @@ def fetch_from_sheets():
     return None
 
 
-def force_sync_with_sheets():
-    """Smart-Sync: Memperbarui database dari Google Sheets tanpa menghapus data lokal yang belum sempat masuk ke Sheets"""
-    if API_URL:
-        sheets_data = fetch_from_sheets()
-        if sheets_data and isinstance(sheets_data, dict):
-            txs = sheets_data.get("transaksi", [])
-            if isinstance(txs, list):
-                conn = get_db()
-                c = conn.cursor()
-                
-                # Masukkan/perbarui data yang ada di Google Sheets
-                for item in txs:
-                    try:
-                        tx_id = int(item.get("id"))
-                        tgl = clean_date_str(item.get("tanggal", ""))
-                        waktu = clean_time_str(item.get("waktu", ""))
-                        kategori = str(item.get("kategori", ""))
-                        keterangan = str(item.get("keterangan", ""))
-                        jenis = str(item.get("jenis", "")).lower().strip()
-                        jumlah = clean_amount(item.get("jumlah", 0))
+def sync_merge_sheets():
+    """Menggabungkan data Spreadsheet tanpa menghapus transaksi lokal baru"""
+    sheets_data = fetch_from_sheets()
+    if sheets_data and isinstance(sheets_data, dict):
+        txs = sheets_data.get("transaksi", [])
+        if isinstance(txs, list) and len(txs) > 0:
+            conn = get_db()
+            c = conn.cursor()
+            for item in txs:
+                try:
+                    tx_id = int(item.get("id"))
+                    tgl = clean_date_str(item.get("tanggal", ""))
+                    waktu = clean_time_str(item.get("waktu", ""))
+                    kategori = str(item.get("kategori", ""))
+                    keterangan = str(item.get("keterangan", ""))
+                    jenis = str(item.get("jenis", "")).lower().strip()
+                    jumlah = clean_amount(item.get("jumlah", 0))
 
-                        c.execute(
-                            "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
-                        )
-                    except Exception:
-                        continue
-                conn.commit()
-                conn.close()
+                    c.execute(
+                        "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                    )
+                except Exception:
+                    continue
+            conn.commit()
+            conn.close()
 
 
 def load_data():
@@ -247,9 +238,8 @@ def load_data():
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
 
-    # Jika SQLite kosong, tarik data awal dari Google Sheets
     if df.empty and API_URL:
-        force_sync_with_sheets()
+        sync_merge_sheets()
         conn = get_db()
         df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
         conn.close()
@@ -258,7 +248,6 @@ def load_data():
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
 
-        # HITUNG SALDO KONTINU DARI TRANSAKSI PERTAMA SAMPAI TERAKHIR
         running_saldo = 0.0
         saldos = []
         for _, row in df.iterrows():
@@ -280,7 +269,7 @@ def format_rupiah(n):
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
 
-    # 1. Simpan LANGSUNG ke Database Lokal SQLite (Dijamin Langsung Muncul & Aman)
+    # 1. Simpan Ke Database Lokal Dulu (Jaminan Langsung Tampil)
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -290,7 +279,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # 2. Kirim Cadangan ke Google Sheets di Background
+    # 2. Kirim ke Google Sheets
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -309,14 +298,12 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
 
 
 def delete_data(tx_id):
-    # 1. Hapus dari Database Lokal
     conn = get_db()
     c = conn.cursor()
     c.execute("DELETE FROM transaksi WHERE id = ?", (tx_id,))
     conn.commit()
     conn.close()
 
-    # 2. Hapus dari Google Sheets
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
@@ -543,7 +530,7 @@ with tab1:
 # ------------------------------------------
 with tab2:
     if st.button("🔄 SINKRONKAN DENGAN GOOGLE SHEETS"):
-        force_sync_with_sheets()
+        sync_merge_sheets()
         st.rerun()
 
     if not df.empty:
