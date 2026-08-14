@@ -203,7 +203,7 @@ def clean_time_str(t_str):
 def fetch_from_sheets():
     if API_URL and "script.google.com" in API_URL:
         try:
-            res = requests.get(API_URL, timeout=3)
+            res = requests.get(API_URL, timeout=4)
             if res.status_code == 200:
                 return res.json()
         except Exception:
@@ -211,21 +211,16 @@ def fetch_from_sheets():
     return None
 
 
-def sync_from_sheets_if_empty():
-    """Hanya menarik data dari Google Sheets JIKA database lokal SQLite sedang kosong (misal baru reboot)"""
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM transaksi")
-    count = c.fetchone()[0]
-    conn.close()
-
-    if count == 0 and API_URL:
+def force_sync_with_sheets():
+    """Mengosongkan dan memperbarui isi database lokal persis seperti isi Google Sheets"""
+    if API_URL:
         sheets_data = fetch_from_sheets()
         if sheets_data and isinstance(sheets_data, dict):
             txs = sheets_data.get("transaksi", [])
-            if isinstance(txs, list) and len(txs) > 0:
+            if isinstance(txs, list):
                 conn = get_db()
                 c = conn.cursor()
+                c.execute("DELETE FROM transaksi")
                 for item in txs:
                     try:
                         tx_id = int(item.get("id"))
@@ -237,7 +232,7 @@ def sync_from_sheets_if_empty():
                         jumlah = clean_amount(item.get("jumlah", 0))
 
                         c.execute(
-                            "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
                         )
                     except Exception:
@@ -247,17 +242,21 @@ def sync_from_sheets_if_empty():
 
 
 def load_data():
-    sync_from_sheets_if_empty()
-
     conn = get_db()
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
+
+    if df.empty and API_URL:
+        force_sync_with_sheets()
+        conn = get_db()
+        df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
+        conn.close()
 
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
 
-        # KALKULASI SALDO BERJALAN KONTINU
+        # HITUNG SALDO KONTINU DARI TRANSAKSI PERTAMA SAMPAI TERAKHIR
         running_saldo = 0.0
         saldos = []
         for _, row in df.iterrows():
@@ -279,7 +278,6 @@ def format_rupiah(n):
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
 
-    # 1. Simpan LANGSUNG ke Database Lokal SQLite (Garansi Langsung Tampil)
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -289,7 +287,6 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # 2. Kirim Cadangan ke Google Sheets di Background
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -302,7 +299,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "jenis": jenis,
                 "jumlah": format_rupiah(jumlah),
             }
-            requests.post(API_URL, json=payload, timeout=2)
+            requests.post(API_URL, json=payload, timeout=3)
         except Exception:
             pass
 
@@ -317,7 +314,7 @@ def delete_data(tx_id):
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
-            requests.post(API_URL, json=payload, timeout=2)
+            requests.post(API_URL, json=payload, timeout=3)
         except Exception:
             pass
 
@@ -426,6 +423,7 @@ st.markdown(
 )
 
 df = load_data()
+today_str = str(datetime.now(WIB).date())
 
 # ==========================================
 # 4. TAB NAVIGASI UTAMA
@@ -433,35 +431,84 @@ df = load_data()
 tab1, tab2, tab3 = st.tabs(["Dashboard", "Transaksi", "Input"])
 
 # ------------------------------------------
-# TAB 1: DASHBOARD
+# TAB 1: DASHBOARD (AKURAT PERGANTIAN HARI)
 # ------------------------------------------
 with tab1:
-    total_masuk = 0.0
-    total_keluar = 0.0
-    saldo_akhir_total = 0.0
-
-    if not df.empty:
-        total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
-        total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum())
-        saldo_akhir_total = float(df.iloc[-1]["saldo"])
-
-    st.markdown(
-        f"""
-    <div class="saldo-banner">
-        <div class="saldo-banner-title">SALDO KAS SAAT INI</div>
-        <div class="saldo-banner-value">{format_rupiah(saldo_akhir_total)}</div>
-    </div>
-    <div class="stat-card in">
-        <div class="stat-label">Total Pemasukan Keseluruhan (+)</div>
-        <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(total_masuk)}</div>
-    </div>
-    <div class="stat-card out">
-        <div class="stat-label">Total Pengeluaran Keseluruhan (-)</div>
-        <div class="stat-value" style="color:#C2402A;">{format_rupiah(total_keluar)}</div>
-    </div>
-    """,
-        unsafe_allow_html=True,
+    view_type = st.radio(
+        "Tampilan Ringkasan:",
+        ["Hari Ini", "Keseluruhan"],
+        horizontal=True,
     )
+
+    if view_type == "Hari Ini":
+        if not df.empty:
+            df_today = df[df["tanggal"] == today_str]
+            df_before = df[df["tanggal"] < today_str]
+
+            saldo_awal_today = (
+                float(df_before.iloc[-1]["saldo"]) if not df_before.empty else 0.0
+            )
+            masuk_today = float(
+                df_today[df_today["jenis"] == "masuk"]["jumlah"].sum()
+            ) if not df_today.empty else 0.0
+            keluar_today = float(
+                df_today[df_today["jenis"] == "keluar"]["jumlah"].sum()
+            ) if not df_today.empty else 0.0
+            saldo_akhir_today = float(df.iloc[-1]["saldo"])
+        else:
+            saldo_awal_today = 0.0
+            masuk_today = 0.0
+            keluar_today = 0.0
+            saldo_akhir_today = 0.0
+
+        st.markdown(
+            f"""
+        <div class="saldo-banner">
+            <div class="saldo-banner-title">SALDO KAS HARI INI ({today_str})</div>
+            <div class="saldo-banner-value">{format_rupiah(saldo_akhir_today)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Saldo Awal Hari Ini (Sisa Kemarin)</div>
+            <div class="stat-value">{format_rupiah(saldo_awal_today)}</div>
+        </div>
+        <div class="stat-card in">
+            <div class="stat-label">Pemasukan Hari Ini (+)</div>
+            <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(masuk_today)}</div>
+        </div>
+        <div class="stat-card out">
+            <div class="stat-label">Pengeluaran Hari Ini (-)</div>
+            <div class="stat-value" style="color:#C2402A;">{format_rupiah(keluar_today)}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+    else:
+        total_masuk = 0.0
+        total_keluar = 0.0
+        saldo_total = 0.0
+
+        if not df.empty:
+            total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
+            total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum())
+            saldo_total = float(df.iloc[-1]["saldo"])
+
+        st.markdown(
+            f"""
+        <div class="saldo-banner">
+            <div class="saldo-banner-title">TOTAL SALDO KAS AKUMULATIF</div>
+            <div class="saldo-banner-value">{format_rupiah(saldo_total)}</div>
+        </div>
+        <div class="stat-card in">
+            <div class="stat-label">Total Pemasukan Keseluruhan (+)</div>
+            <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(total_masuk)}</div>
+        </div>
+        <div class="stat-card out">
+            <div class="stat-label">Total Pengeluaran Keseluruhan (-)</div>
+            <div class="stat-value" style="color:#C2402A;">{format_rupiah(total_keluar)}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
 
     if not df.empty:
         st.caption("--- TREN SALDO BERJALAN ---")
@@ -485,6 +532,10 @@ with tab1:
 # TAB 2: TRANSAKSI HARIAN
 # ------------------------------------------
 with tab2:
+    if st.button("🔄 SINKRONKAN / AMBIL DATA DARI GOOGLE SHEETS"):
+        force_sync_with_sheets()
+        st.rerun()
+
     if not df.empty:
         opsi_tgl = ["Semua tanggal"] + sorted(
             list(df["tanggal"].unique()), reverse=True
