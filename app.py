@@ -142,7 +142,7 @@ except Exception:
 
 
 # ==========================================
-# 2. DATABASE LOKAL + SINKRONISASI MANUSIAWI
+# 2. DATABASE LOKAL + SINKRONISASI BERCERMIN (TRUE MIRROR)
 # ==========================================
 def get_db():
     return sqlite3.connect("buku_kas.db")
@@ -197,7 +197,7 @@ def clean_time_str(t_str):
 def fetch_from_sheets():
     if API_URL and "script.google.com" in API_URL:
         try:
-            res = requests.get(API_URL, timeout=5)
+            res = requests.get(API_URL, timeout=6)
             if res.status_code == 200:
                 return res.json()
         except Exception:
@@ -205,30 +205,35 @@ def fetch_from_sheets():
     return None
 
 
-def sync_merge_sheets():
-    """Menggabungkan data Spreadsheet tanpa menghapus transaksi lokal baru"""
-    sheets_data = fetch_from_sheets()
-    if sheets_data and isinstance(sheets_data, dict):
-        txs = sheets_data.get("transaksi", [])
-        if isinstance(txs, list) and len(txs) > 0:
+def force_mirror_sheets():
+    """Mengosongkan DB lokal dan menyelaraskan total 100% sama dengan Google Sheets"""
+    if API_URL:
+        sheets_data = fetch_from_sheets()
+        if sheets_data and isinstance(sheets_data, dict):
+            txs = sheets_data.get("transaksi", [])
             conn = get_db()
             c = conn.cursor()
-            for item in txs:
-                try:
-                    tx_id = int(item.get("id"))
-                    tgl = clean_date_str(item.get("tanggal", ""))
-                    waktu = clean_time_str(item.get("waktu", ""))
-                    kategori = str(item.get("kategori", ""))
-                    keterangan = str(item.get("keterangan", ""))
-                    jenis = str(item.get("jenis", "")).lower().strip()
-                    jumlah = clean_amount(item.get("jumlah", 0))
+            
+            # HAPUS SELURUH KAS LOKAL AGAR TIDAK ADA DATA LAMA YANG NYANGKUT
+            c.execute("DELETE FROM transaksi")
+            
+            if isinstance(txs, list):
+                for item in txs:
+                    try:
+                        tx_id = int(item.get("id"))
+                        tgl = clean_date_str(item.get("tanggal", ""))
+                        waktu = clean_time_str(item.get("waktu", ""))
+                        kategori = str(item.get("kategori", ""))
+                        keterangan = str(item.get("keterangan", ""))
+                        jenis = str(item.get("jenis", "")).lower().strip()
+                        jumlah = clean_amount(item.get("jumlah", 0))
 
-                    c.execute(
-                        "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
-                    )
-                except Exception:
-                    continue
+                        c.execute(
+                            "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                        )
+                    except Exception:
+                        continue
             conn.commit()
             conn.close()
 
@@ -238,8 +243,9 @@ def load_data():
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
 
+    # Jika SQLite lokal kosong, tarik otomatis dari Google Sheets
     if df.empty and API_URL:
-        sync_merge_sheets()
+        force_mirror_sheets()
         conn = get_db()
         df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
         conn.close()
@@ -269,7 +275,7 @@ def format_rupiah(n):
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
 
-    # 1. Simpan Ke Database Lokal Dulu (Jaminan Langsung Tampil)
+    # 1. Simpan Ke Database Lokal
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -530,7 +536,7 @@ with tab1:
 # ------------------------------------------
 with tab2:
     if st.button("🔄 SINKRONKAN DENGAN GOOGLE SHEETS"):
-        sync_merge_sheets()
+        force_mirror_sheets()
         st.rerun()
 
     if not df.empty:
