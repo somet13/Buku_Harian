@@ -105,6 +105,12 @@ st.markdown(
         margin-bottom: 8px;
         border-radius: 6px;
     }
+    .tx-name-badge {
+        font-size: 13px;
+        font-weight: 700;
+        color: #2A241D;
+        margin-bottom: 4px;
+    }
     .tx-time-badge {
         font-size: 11px;
         font-weight: 700;
@@ -154,6 +160,7 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS transaksi (
             id INTEGER PRIMARY KEY,
+            nama TEXT,
             tanggal TEXT,
             waktu TEXT,
             kategori TEXT,
@@ -213,14 +220,14 @@ def force_mirror_sheets():
             txs = sheets_data.get("transaksi", [])
             conn = get_db()
             c = conn.cursor()
-            
-            # HAPUS SELURUH KAS LOKAL AGAR TIDAK ADA DATA LAMA YANG NYANGKUT
+
             c.execute("DELETE FROM transaksi")
-            
+
             if isinstance(txs, list):
                 for item in txs:
                     try:
                         tx_id = int(item.get("id"))
+                        nama = str(item.get("nama", "-"))
                         tgl = clean_date_str(item.get("tanggal", ""))
                         waktu = clean_time_str(item.get("waktu", ""))
                         kategori = str(item.get("kategori", ""))
@@ -229,8 +236,8 @@ def force_mirror_sheets():
                         jumlah = clean_amount(item.get("jumlah", 0))
 
                         c.execute(
-                            "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                            "INSERT INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (tx_id, nama, tgl, waktu, kategori, keterangan, jenis, jumlah),
                         )
                     except Exception:
                         continue
@@ -253,6 +260,8 @@ def load_data():
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
+        if "nama" not in df.columns:
+            df["nama"] = "-"
 
         running_saldo = 0.0
         saldos = []
@@ -272,15 +281,15 @@ def format_rupiah(n):
     return f"Rp {float(n or 0):,.0f}".replace(",", ".")
 
 
-def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
+def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
 
     # 1. Simpan Ke Database Lokal
     conn = get_db()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (new_id, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
+        "INSERT INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (new_id, nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
     )
     conn.commit()
     conn.close()
@@ -291,6 +300,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
             payload = {
                 "action": "ADD",
                 "id": new_id,
+                "nama": nama_str,
                 "tanggal": tgl_str,
                 "waktu": waktu_str,
                 "kategori": kategori,
@@ -378,10 +388,11 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     elements.append(Spacer(1, 15))
 
     table_data = [
-        ["Tanggal", "Waktu", "Kategori", "Keterangan", "Jenis", "Nominal"]
+        ["Nama", "Tanggal", "Waktu", "Kategori", "Keterangan", "Jenis", "Nominal"]
     ]
     for idx, row in df_pdf.iterrows():
         table_data.append([
+            str(row.get("nama", "-")),
             str(row["tanggal"]),
             str(row["waktu"]),
             str(row["kategori"]),
@@ -390,7 +401,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
             format_rupiah(row["jumlah"]),
         ])
 
-    t_tx = Table(table_data, colWidths=[65, 45, 80, 150, 60, 100])
+    t_tx = Table(table_data, colWidths=[75, 55, 40, 75, 120, 50, 85])
     t_tx.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2A241D")),
@@ -625,6 +636,7 @@ with tab2:
             st.markdown(
                 f"""
             <div class="tx-item">
+                <div class="tx-name-badge">👤 {row.get('nama', '-')}</div>
                 <div>
                     <span class="tx-time-badge">📅 {row['tanggal']} | ⏱️ {row['waktu']} WIB</span>
                 </div>
@@ -646,7 +658,7 @@ with tab2:
         st.info("Belum ada transaksi.")
 
 # ------------------------------------------
-# TAB 3: INPUT TRANSAKSI
+# TAB 3: INPUT TRANSAKSI (DENGAN NAMA)
 # ------------------------------------------
 with tab3:
     st.caption("— FORM INPUT TRANSAKSI —")
@@ -663,6 +675,7 @@ with tab3:
     now_wib = datetime.now(WIB)
 
     with st.form("form_tx", clear_on_submit=True):
+        nama = st.text_input("Nama Pembayar / Penanggung Jawab", placeholder="mis. Ulfa / Fikri")
         tanggal = st.date_input("Tanggal Transaksi", value=now_wib.date())
         jam = st.time_input("Waktu Transaksi (WIB)", value=now_wib.time())
 
@@ -683,11 +696,13 @@ with tab3:
         submit = st.form_submit_button("+ SIMPAN TRANSAKSI")
 
         if submit:
-            if jumlah <= 0:
+            if not nama.strip():
+                st.error("Isi Nama terlebih dahulu.")
+            elif jumlah <= 0:
                 st.error("Isi nominal jumlah transaksi terlebih dahulu.")
             else:
                 tgl_str = str(tanggal)
                 waktu_str = jam.strftime("%H:%M")
-                add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah)
+                add_data(nama.strip(), tgl_str, waktu_str, kategori, keterangan, jenis, jumlah)
                 st.success(f"Transaksi Berhasil Dicatat ({tgl_str} {waktu_str} WIB) ✓")
                 st.rerun()
