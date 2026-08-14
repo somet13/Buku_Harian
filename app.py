@@ -148,7 +148,7 @@ except Exception:
 
 
 # ==========================================
-# 2. DATABASE & SINKRONISASI (AMAN DARI CRASH)
+# 2. DATABASE & SINKRONISASI
 # ==========================================
 def get_db():
     return sqlite3.connect("buku_kas.db")
@@ -169,7 +169,6 @@ def init_db():
             jumlah REAL
         )
     """)
-    # Validasi migrasi kolom nama jika belum ada
     c.execute("PRAGMA table_info(transaksi)")
     cols = [col[1] for col in c.fetchall()]
     if "nama" not in cols:
@@ -299,7 +298,6 @@ def format_rupiah(n):
 def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = str(int(time.time() * 1000))
 
-    # 1. Simpan ke database lokal
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -309,7 +307,6 @@ def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # 2. Kirim ke Google Sheets
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -562,7 +559,7 @@ with tab1:
         st.pyplot(fig)
 
 # ------------------------------------------
-# TAB 2: TRANSAKSI HARIAN
+# TAB 2: TRANSAKSI HARIAN (DENGAN FILTER NAMA)
 # ------------------------------------------
 with tab2:
     if st.button("🔄 SINKRONKAN DENGAN GOOGLE SHEETS"):
@@ -570,109 +567,91 @@ with tab2:
         st.rerun()
 
     if not df.empty and len(df) > 0:
-        opsi_tgl = ["Semua tanggal"] + sorted(
-            list(df["tanggal"].dropna().unique()), reverse=True
-        )
-        pilihan_tgl = st.selectbox("Filter Tanggal Transaksi", opsi_tgl)
+        # FILTER DUA KOLOM: NAMA & TANGGAL
+        col_f1, col_f2 = st.columns(2)
+        
+        with col_f1:
+            nama_list = sorted([str(n) for n in df["nama"].dropna().unique() if str(n).strip() != ""])
+            opsi_nama = ["Semua Nama"] + nama_list
+            pilihan_nama = st.selectbox("👤 Filter Nama", opsi_nama)
+            
+        with col_f2:
+            tgl_list = sorted(list(df["tanggal"].dropna().unique()), reverse=True)
+            opsi_tgl = ["Semua tanggal"] + tgl_list
+            pilihan_tgl = st.selectbox("📅 Filter Tanggal", opsi_tgl)
 
+        # PROSES FILTERING DATA
+        df_visible = df.copy()
+        
+        if pilihan_nama != "Semua Nama":
+            df_visible = df_visible[df_visible["nama"] == pilihan_nama]
+            
         if pilihan_tgl != "Semua tanggal":
-            df_filtered = df[df["tanggal"] == pilihan_tgl]
+            df_visible = df_visible[df_visible["tanggal"] == pilihan_tgl]
 
-            df_before = df[df["tanggal"] < pilihan_tgl]
-            saldo_awal_hari = (
-                float(df_before.iloc[-1]["saldo"]) if not df_before.empty else 0.0
-            )
+        # RINGKASAN TOTAL DARI DATA YANG DI-FILTER
+        total_masuk_filter = float(df_visible[df_visible["jenis"] == "masuk"]["jumlah"].sum()) if not df_visible.empty else 0.0
+        total_keluar_filter = float(df_visible[df_visible["jenis"] == "keluar"]["jumlah"].sum()) if not df_visible.empty else 0.0
+        saldo_akhir_filter = float(df_visible.iloc[-1]["saldo"]) if not df_visible.empty else 0.0
 
-            total_masuk_hari = float(
-                df_filtered[df_filtered["jenis"] == "masuk"]["jumlah"].sum()
-            )
-            total_keluar_hari = float(
-                df_filtered[df_filtered["jenis"] == "keluar"]["jumlah"].sum()
-            )
-            saldo_akhir_hari = float(df_filtered.iloc[-1]["saldo"]) if not df_filtered.empty else 0.0
-
-            st.markdown(
-                f"""
-            <div class="saldo-banner">
-                <div class="saldo-banner-title">SALDO AKHIR TANGGAL {pilihan_tgl}</div>
-                <div class="saldo-banner-value">{format_rupiah(saldo_akhir_hari)}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Saldo Awal (Sisa Sebelum Tanggal Ini)</div>
-                <div class="stat-value">{format_rupiah(saldo_awal_hari)}</div>
-            </div>
-            <div class="stat-card in">
-                <div class="stat-label">Pemasukan Tanggal Ini (+)</div>
-                <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(total_masuk_hari)}</div>
-            </div>
-            <div class="stat-card out">
-                <div class="stat-label">Pengeluaran Tanggal Ini (-)</div>
-                <div class="stat-value" style="color:#C2402A;">{format_rupiah(total_keluar_hari)}</div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-            df_visible = df_filtered
-        else:
-            saldo_awal_hari = 0.0
-            total_masuk_hari = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
-            total_keluar_hari = float(
-                df[df["jenis"] == "keluar"]["jumlah"].sum()
-            )
-            saldo_akhir_hari = float(df.iloc[-1]["saldo"]) if not df.empty else 0.0
-
-            st.markdown(
-                f"""
-            <div class="saldo-banner">
-                <div class="saldo-banner-title">SALDO KAS SAAT INI (TOTAL)</div>
-                <div class="saldo-banner-value">{format_rupiah(saldo_akhir_hari)}</div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-            df_visible = df
+        st.markdown(
+            f"""
+        <div class="stat-card in">
+            <div class="stat-label">Pemasukan ({pilihan_nama} | {pilihan_tgl}) (+)</div>
+            <div class="stat-value" style="color:#1E7A4C;">{format_rupiah(total_masuk_filter)}</div>
+        </div>
+        <div class="stat-card out">
+            <div class="stat-label">Pengeluaran ({pilihan_nama} | {pilihan_tgl}) (-)</div>
+            <div class="stat-value" style="color:#C2402A;">{format_rupiah(total_keluar_filter)}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
 
         pdf_bytes = generate_pdf(
             df_visible,
-            saldo_awal_hari,
-            total_masuk_hari,
-            total_keluar_hari,
-            saldo_akhir_hari,
+            0.0,
+            total_masuk_filter,
+            total_keluar_filter,
+            total_masuk_filter - total_keluar_filter,
         )
         st.download_button(
             label="📄 CETAK / DOWNLOAD LAPORAN PDF",
             data=pdf_bytes,
-            file_name=f"Laporan_Buku_Kas_{pilihan_tgl}.pdf",
+            file_name=f"Laporan_Kas_{pilihan_nama}_{pilihan_tgl}.pdf",
             mime="application/pdf",
         )
 
-        st.caption("--- DAFTAR TRANSAKSI ---")
-        for idx, row in df_visible.iloc[::-1].iterrows():
-            is_masuk = row["jenis"] == "masuk"
-            cls_amt = "tx-amount-masuk" if is_masuk else "tx-amount-keluar"
-            sign = "+" if is_masuk else "-"
+        st.caption(f"--- DAFTAR TRANSAKSI ({len(df_visible)} Data) ---")
+        if not df_visible.empty:
+            for idx, row in df_visible.iloc[::-1].iterrows():
+                is_masuk = row["jenis"] == "masuk"
+                cls_amt = "tx-amount-masuk" if is_masuk else "tx-amount-keluar"
+                sign = "+" if is_masuk else "-"
 
-            st.markdown(
-                f"""
-            <div class="tx-item">
-                <div class="tx-name-badge">👤 {row.get('nama', '-')}</div>
-                <div>
-                    <span class="tx-time-badge">📅 {row['tanggal']} | ⏱️ {row['waktu']} WIB</span>
+                st.markdown(
+                    f"""
+                <div class="tx-item">
+                    <div class="tx-name-badge">👤 {row.get('nama', '-')}</div>
+                    <div>
+                        <span class="tx-time-badge">📅 {row['tanggal']} | ⏱️ {row['waktu']} WIB</span>
+                    </div>
+                    <div class="tx-desc">{row['keterangan'] or '-'}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                        <span class="tx-cat">{row['kategori']}</span>
+                        <span class="{cls_amt}">{sign}{format_rupiah(row['jumlah'])}</span>
+                    </div>
+                    <div class="tx-saldo">Saldo Sisa: {format_rupiah(row['saldo'])}</div>
                 </div>
-                <div class="tx-desc">{row['keterangan'] or '-'}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
-                    <span class="tx-cat">{row['kategori']}</span>
-                    <span class="{cls_amt}">{sign}{format_rupiah(row['jumlah'])}</span>
-                </div>
-                <div class="tx-saldo">Saldo Sisa: {format_rupiah(row['saldo'])}</div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
+                """,
+                    unsafe_allow_html=True,
+                )
 
-            if st.button("✕ Hapus", key=f"del_{row['id']}"):
-                delete_data(row["id"])
-                st.rerun()
+                if st.button("✕ Hapus", key=f"del_{row['id']}"):
+                    delete_data(row["id"])
+                    st.rerun()
+        else:
+            st.warning("Tidak ada transaksi untuk kombinasi nama dan tanggal tersebut.")
     else:
         st.info("Belum ada transaksi.")
 
