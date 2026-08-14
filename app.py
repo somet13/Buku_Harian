@@ -203,7 +203,7 @@ def clean_time_str(t_str):
 def fetch_from_sheets():
     if API_URL and "script.google.com" in API_URL:
         try:
-            res = requests.get(API_URL, timeout=4)
+            res = requests.get(API_URL, timeout=6)
             if res.status_code == 200:
                 return res.json()
         except Exception:
@@ -217,10 +217,10 @@ def force_sync_with_sheets():
         sheets_data = fetch_from_sheets()
         if sheets_data and isinstance(sheets_data, dict):
             txs = sheets_data.get("transaksi", [])
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM transaksi")
             if isinstance(txs, list):
-                conn = get_db()
-                c = conn.cursor()
-                c.execute("DELETE FROM transaksi")
                 for item in txs:
                     try:
                         tx_id = int(item.get("id"))
@@ -237,8 +237,8 @@ def force_sync_with_sheets():
                         )
                     except Exception:
                         continue
-                conn.commit()
-                conn.close()
+            conn.commit()
+            conn.close()
 
 
 def load_data():
@@ -246,6 +246,7 @@ def load_data():
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
 
+    # Jika database lokal kosong, baru sinkronkan dengan Google Sheets
     if df.empty and API_URL:
         force_sync_with_sheets()
         conn = get_db()
@@ -278,6 +279,7 @@ def format_rupiah(n):
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
 
+    # 1. Simpan ke Database Lokal Dulu
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -287,6 +289,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
+    # 2. Kirim ke Google Sheets & Tunggu Respons
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -299,22 +302,27 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "jenis": jenis,
                 "jumlah": format_rupiah(jumlah),
             }
-            requests.post(API_URL, json=payload, timeout=3)
+            requests.post(API_URL, json=payload, timeout=5)
+            # Beri jeda 1.5 detik agar Google Sheets selesai menuliskan data
+            time.sleep(1.5)
         except Exception:
             pass
 
 
 def delete_data(tx_id):
+    # 1. Hapus dari Database Lokal
     conn = get_db()
     c = conn.cursor()
     c.execute("DELETE FROM transaksi WHERE id = ?", (tx_id,))
     conn.commit()
     conn.close()
 
+    # 2. Hapus dari Google Sheets
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
-            requests.post(API_URL, json=payload, timeout=3)
+            requests.post(API_URL, json=payload, timeout=5)
+            time.sleep(1.5)
         except Exception:
             pass
 
@@ -431,7 +439,7 @@ today_str = str(datetime.now(WIB).date())
 tab1, tab2, tab3 = st.tabs(["Dashboard", "Transaksi", "Input"])
 
 # ------------------------------------------
-# TAB 1: DASHBOARD (AKURAT PERGANTIAN HARI)
+# TAB 1: DASHBOARD
 # ------------------------------------------
 with tab1:
     view_type = st.radio(
@@ -448,12 +456,16 @@ with tab1:
             saldo_awal_today = (
                 float(df_before.iloc[-1]["saldo"]) if not df_before.empty else 0.0
             )
-            masuk_today = float(
-                df_today[df_today["jenis"] == "masuk"]["jumlah"].sum()
-            ) if not df_today.empty else 0.0
-            keluar_today = float(
-                df_today[df_today["jenis"] == "keluar"]["jumlah"].sum()
-            ) if not df_today.empty else 0.0
+            masuk_today = (
+                float(df_today[df_today["jenis"] == "masuk"]["jumlah"].sum())
+                if not df_today.empty
+                else 0.0
+            )
+            keluar_today = (
+                float(df_today[df_today["jenis"] == "keluar"]["jumlah"].sum())
+                if not df_today.empty
+                else 0.0
+            )
             saldo_akhir_today = float(df.iloc[-1]["saldo"])
         else:
             saldo_awal_today = 0.0
