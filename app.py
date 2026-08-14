@@ -169,6 +169,15 @@ def init_db():
             jumlah REAL
         )
     """)
+    # Pastikan kolom 'nama' ada jika tabel lama belum punya kolom nama
+    c.execute("PRAGMA table_info(transaksi)")
+    columns = [col[1] for col in c.fetchall()]
+    if "nama" not in columns:
+        try:
+            c.execute("ALTER TABLE transaksi ADD COLUMN nama TEXT DEFAULT '-'")
+        except Exception:
+            pass
+
     conn.commit()
     conn.close()
 
@@ -221,12 +230,16 @@ def force_mirror_sheets():
             conn = get_db()
             c = conn.cursor()
 
+            # Bersihkan DB lokal terlebih dahulu
             c.execute("DELETE FROM transaksi")
 
             if isinstance(txs, list):
-                for item in txs:
+                for idx, item in enumerate(txs):
                     try:
-                        tx_id = int(item.get("id"))
+                        # Gunakan id dari sheets jika ada, jika tidak pakai index/timestamp
+                        raw_id = item.get("id")
+                        tx_id = int(raw_id) if raw_id and str(raw_id).isdigit() else (idx + 1)
+                        
                         nama = str(item.get("nama", "-"))
                         tgl = clean_date_str(item.get("tanggal", ""))
                         waktu = clean_time_str(item.get("waktu", ""))
@@ -236,7 +249,7 @@ def force_mirror_sheets():
                         jumlah = clean_amount(item.get("jumlah", 0))
 
                         c.execute(
-                            "INSERT INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            "INSERT OR REPLACE INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                             (tx_id, nama, tgl, waktu, kategori, keterangan, jenis, jumlah),
                         )
                     except Exception:
@@ -313,7 +326,7 @@ def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
             pass
 
 
-def delete_data(tx_id):
+def delete_data(tx_id, nama_str, ket_str):
     conn = get_db()
     c = conn.cursor()
     c.execute("DELETE FROM transaksi WHERE id = ?", (tx_id,))
@@ -322,7 +335,12 @@ def delete_data(tx_id):
 
     if API_URL and "script.google.com" in API_URL:
         try:
-            payload = {"action": "DELETE", "id": tx_id}
+            payload = {
+                "action": "DELETE",
+                "id": tx_id,
+                "nama": nama_str,
+                "keterangan": ket_str
+            }
             requests.post(API_URL, json=payload, timeout=4)
         except Exception:
             pass
@@ -652,7 +670,7 @@ with tab2:
             )
 
             if st.button("✕ Hapus", key=f"del_{row['id']}"):
-                delete_data(row["id"])
+                delete_data(row["id"], row.get("nama", ""), row.get("keterangan", ""))
                 st.rerun()
     else:
         st.info("Belum ada transaksi.")
