@@ -212,15 +212,16 @@ def fetch_from_sheets():
 
 
 def force_sync_with_sheets():
-    """Mengosongkan dan memperbarui isi database lokal persis seperti isi Google Sheets"""
+    """Smart-Sync: Memperbarui database dari Google Sheets tanpa menghapus data lokal yang belum sempat masuk ke Sheets"""
     if API_URL:
         sheets_data = fetch_from_sheets()
         if sheets_data and isinstance(sheets_data, dict):
             txs = sheets_data.get("transaksi", [])
-            conn = get_db()
-            c = conn.cursor()
-            c.execute("DELETE FROM transaksi")
             if isinstance(txs, list):
+                conn = get_db()
+                c = conn.cursor()
+                
+                # Masukkan/perbarui data yang ada di Google Sheets
                 for item in txs:
                     try:
                         tx_id = int(item.get("id"))
@@ -232,13 +233,13 @@ def force_sync_with_sheets():
                         jumlah = clean_amount(item.get("jumlah", 0))
 
                         c.execute(
-                            "INSERT INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            "INSERT OR REPLACE INTO transaksi (id, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (tx_id, tgl, waktu, kategori, keterangan, jenis, jumlah),
                         )
                     except Exception:
                         continue
-            conn.commit()
-            conn.close()
+                conn.commit()
+                conn.close()
 
 
 def load_data():
@@ -246,7 +247,7 @@ def load_data():
     df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
     conn.close()
 
-    # Jika database lokal kosong, baru sinkronkan dengan Google Sheets
+    # Jika SQLite kosong, tarik data awal dari Google Sheets
     if df.empty and API_URL:
         force_sync_with_sheets()
         conn = get_db()
@@ -279,7 +280,7 @@ def format_rupiah(n):
 def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = int(time.time() * 1000)
 
-    # 1. Simpan ke Database Lokal Dulu
+    # 1. Simpan LANGSUNG ke Database Lokal SQLite (Dijamin Langsung Muncul & Aman)
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -289,7 +290,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     conn.commit()
     conn.close()
 
-    # 2. Kirim ke Google Sheets & Tunggu Respons
+    # 2. Kirim Cadangan ke Google Sheets di Background
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
@@ -302,9 +303,7 @@ def add_data(tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
                 "jenis": jenis,
                 "jumlah": format_rupiah(jumlah),
             }
-            requests.post(API_URL, json=payload, timeout=5)
-            # Beri jeda 1.5 detik agar Google Sheets selesai menuliskan data
-            time.sleep(1.5)
+            requests.post(API_URL, json=payload, timeout=4)
         except Exception:
             pass
 
@@ -321,8 +320,7 @@ def delete_data(tx_id):
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {"action": "DELETE", "id": tx_id}
-            requests.post(API_URL, json=payload, timeout=5)
-            time.sleep(1.5)
+            requests.post(API_URL, json=payload, timeout=4)
         except Exception:
             pass
 
@@ -544,7 +542,7 @@ with tab1:
 # TAB 2: TRANSAKSI HARIAN
 # ------------------------------------------
 with tab2:
-    if st.button("🔄 SINKRONKAN / AMBIL DATA DARI GOOGLE SHEETS"):
+    if st.button("🔄 SINKRONKAN DENGAN GOOGLE SHEETS"):
         force_sync_with_sheets()
         st.rerun()
 
