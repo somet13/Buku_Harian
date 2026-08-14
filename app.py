@@ -18,7 +18,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS AWAL
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -148,7 +148,7 @@ except Exception:
 
 
 # ==========================================
-# 2. DATABASE LOKAL + SINKRONISASI BERCERMIN (TRUE MIRROR)
+# 2. DATABASE & SINKRONISASI (MURNI NAMA)
 # ==========================================
 def get_db():
     return sqlite3.connect("buku_kas.db")
@@ -157,9 +157,10 @@ def get_db():
 def init_db():
     conn = get_db()
     c = conn.cursor()
+    # Tabel tanpa kolom ID
     c.execute("""
         CREATE TABLE IF NOT EXISTS transaksi (
-            id INTEGER PRIMARY KEY,
+            row_id INTEGER PRIMARY KEY AUTOINCREMENT,
             nama TEXT,
             tanggal TEXT,
             waktu TEXT,
@@ -169,15 +170,6 @@ def init_db():
             jumlah REAL
         )
     """)
-    # Pastikan kolom 'nama' ada jika tabel lama belum punya kolom nama
-    c.execute("PRAGMA table_info(transaksi)")
-    columns = [col[1] for col in c.fetchall()]
-    if "nama" not in columns:
-        try:
-            c.execute("ALTER TABLE transaksi ADD COLUMN nama TEXT DEFAULT '-'")
-        except Exception:
-            pass
-
     conn.commit()
     conn.close()
 
@@ -222,7 +214,7 @@ def fetch_from_sheets():
 
 
 def force_mirror_sheets():
-    """Mengosongkan DB lokal dan menyelaraskan total 100% sama dengan Google Sheets"""
+    """Menyelaraskan data lokal murni dari Google Sheets"""
     if API_URL:
         sheets_data = fetch_from_sheets()
         if sheets_data and isinstance(sheets_data, dict):
@@ -230,16 +222,11 @@ def force_mirror_sheets():
             conn = get_db()
             c = conn.cursor()
 
-            # Bersihkan DB lokal terlebih dahulu
             c.execute("DELETE FROM transaksi")
 
             if isinstance(txs, list):
-                for idx, item in enumerate(txs):
+                for item in txs:
                     try:
-                        # Gunakan id dari sheets jika ada, jika tidak pakai index/timestamp
-                        raw_id = item.get("id")
-                        tx_id = int(raw_id) if raw_id and str(raw_id).isdigit() else (idx + 1)
-                        
                         nama = str(item.get("nama", "-"))
                         tgl = clean_date_str(item.get("tanggal", ""))
                         waktu = clean_time_str(item.get("waktu", ""))
@@ -249,8 +236,8 @@ def force_mirror_sheets():
                         jumlah = clean_amount(item.get("jumlah", 0))
 
                         c.execute(
-                            "INSERT OR REPLACE INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (tx_id, nama, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                            "INSERT INTO transaksi (nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (nama, tgl, waktu, kategori, keterangan, jenis, jumlah),
                         )
                     except Exception:
                         continue
@@ -260,21 +247,18 @@ def force_mirror_sheets():
 
 def load_data():
     conn = get_db()
-    df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
+    df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY row_id ASC", conn)
     conn.close()
 
-    # Jika SQLite lokal kosong, tarik otomatis dari Google Sheets
     if df.empty and API_URL:
         force_mirror_sheets()
         conn = get_db()
-        df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY id ASC", conn)
+        df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY row_id ASC", conn)
         conn.close()
 
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
-        if "nama" not in df.columns:
-            df["nama"] = "-"
 
         running_saldo = 0.0
         saldos = []
@@ -295,24 +279,21 @@ def format_rupiah(n):
 
 
 def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
-    new_id = int(time.time() * 1000)
-
-    # 1. Simpan Ke Database Lokal
+    # 1. Simpan ke database lokal
     conn = get_db()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (new_id, nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
+        "INSERT INTO transaksi (nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
     )
     conn.commit()
     conn.close()
 
-    # 2. Kirim ke Google Sheets
+    # 2. Kirim ke Google Sheets (Tanpa field ID)
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
                 "action": "ADD",
-                "id": new_id,
                 "nama": nama_str,
                 "tanggal": tgl_str,
                 "waktu": waktu_str,
@@ -326,20 +307,22 @@ def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
             pass
 
 
-def delete_data(tx_id, nama_str, ket_str):
+def delete_data(row_id, nama_str, tgl_str, ket_str):
+    # 1. Hapus dari database lokal
     conn = get_db()
     c = conn.cursor()
-    c.execute("DELETE FROM transaksi WHERE id = ?", (tx_id,))
+    c.execute("DELETE FROM transaksi WHERE row_id = ?", (row_id,))
     conn.commit()
     conn.close()
 
+    # 2. Hapus dari Google Sheets berdasarkan kombinasi nama & keterangan
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
                 "action": "DELETE",
-                "id": tx_id,
                 "nama": nama_str,
-                "keterangan": ket_str
+                "tanggal": tgl_str,
+                "keterangan": ket_str,
             }
             requests.post(API_URL, json=payload, timeout=4)
         except Exception:
@@ -669,14 +652,14 @@ with tab2:
                 unsafe_allow_html=True,
             )
 
-            if st.button("✕ Hapus", key=f"del_{row['id']}"):
-                delete_data(row["id"], row.get("nama", ""), row.get("keterangan", ""))
+            if st.button("✕ Hapus", key=f"del_{row['row_id']}"):
+                delete_data(row["row_id"], row.get("nama", ""), row.get("tanggal", ""), row.get("keterangan", ""))
                 st.rerun()
     else:
         st.info("Belum ada transaksi.")
 
 # ------------------------------------------
-# TAB 3: INPUT TRANSAKSI (DENGAN NAMA)
+# TAB 3: INPUT TRANSAKSI (MURNI NAMA)
 # ------------------------------------------
 with tab3:
     st.caption("— FORM INPUT TRANSAKSI —")
