@@ -148,7 +148,7 @@ except Exception:
 
 
 # ==========================================
-# 2. DATABASE & SINKRONISASI (MURNI NAMA)
+# 2. DATABASE & SINKRONISASI (AMAN DARI CRASH)
 # ==========================================
 def get_db():
     return sqlite3.connect("buku_kas.db")
@@ -157,10 +157,9 @@ def get_db():
 def init_db():
     conn = get_db()
     c = conn.cursor()
-    # Tabel tanpa kolom ID
     c.execute("""
         CREATE TABLE IF NOT EXISTS transaksi (
-            row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nama TEXT,
             tanggal TEXT,
             waktu TEXT,
@@ -170,6 +169,14 @@ def init_db():
             jumlah REAL
         )
     """)
+    # Validasi migrasi kolom nama jika belum ada
+    c.execute("PRAGMA table_info(transaksi)")
+    cols = [col[1] for col in c.fetchall()]
+    if "nama" not in cols:
+        try:
+            c.execute("ALTER TABLE transaksi ADD COLUMN nama TEXT DEFAULT '-'")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
@@ -225,8 +232,9 @@ def force_mirror_sheets():
             c.execute("DELETE FROM transaksi")
 
             if isinstance(txs, list):
-                for item in txs:
+                for idx, item in enumerate(txs):
                     try:
+                        tx_id = str(item.get("id") or (idx + 1))
                         nama = str(item.get("nama", "-"))
                         tgl = clean_date_str(item.get("tanggal", ""))
                         waktu = clean_time_str(item.get("waktu", ""))
@@ -236,8 +244,8 @@ def force_mirror_sheets():
                         jumlah = clean_amount(item.get("jumlah", 0))
 
                         c.execute(
-                            "INSERT INTO transaksi (nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (nama, tgl, waktu, kategori, keterangan, jenis, jumlah),
+                            "INSERT OR REPLACE INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (tx_id, nama, tgl, waktu, kategori, keterangan, jenis, jumlah),
                         )
                     except Exception:
                         continue
@@ -247,18 +255,26 @@ def force_mirror_sheets():
 
 def load_data():
     conn = get_db()
-    df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY row_id ASC", conn)
+    try:
+        df = pd.read_sql_query("SELECT * FROM transaksi", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
 
     if df.empty and API_URL:
         force_mirror_sheets()
         conn = get_db()
-        df = pd.read_sql_query("SELECT * FROM transaksi ORDER BY row_id ASC", conn)
+        try:
+            df = pd.read_sql_query("SELECT * FROM transaksi", conn)
+        except Exception:
+            df = pd.DataFrame()
         conn.close()
 
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
         df["jenis"] = df["jenis"].astype(str).str.strip().str.lower()
+        if "nama" not in df.columns:
+            df["nama"] = "-"
 
         running_saldo = 0.0
         saldos = []
@@ -270,6 +286,8 @@ def load_data():
                 running_saldo -= amt
             saldos.append(running_saldo)
         df["saldo"] = saldos
+    else:
+        df = pd.DataFrame(columns=["id", "nama", "tanggal", "waktu", "kategori", "keterangan", "jenis", "jumlah", "saldo"])
 
     return df
 
@@ -279,50 +297,49 @@ def format_rupiah(n):
 
 
 def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
+    new_id = str(int(time.time() * 1000))
+
     # 1. Simpan ke database lokal
     conn = get_db()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO transaksi (nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
+        "INSERT OR REPLACE INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (new_id, nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
     )
     conn.commit()
     conn.close()
 
-    # 2. Kirim ke Google Sheets (Tanpa field ID)
+    # 2. Kirim ke Google Sheets
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
                 "action": "ADD",
+                "id": new_id,
                 "nama": nama_str,
                 "tanggal": tgl_str,
                 "waktu": waktu_str,
                 "kategori": kategori,
                 "keterangan": keterangan,
                 "jenis": jenis,
-                "jumlah": format_rupiah(jumlah),
+                "jumlah": float(jumlah),
             }
             requests.post(API_URL, json=payload, timeout=4)
         except Exception:
             pass
 
 
-def delete_data(row_id, nama_str, tgl_str, ket_str):
-    # 1. Hapus dari database lokal
+def delete_data(tx_id):
     conn = get_db()
     c = conn.cursor()
-    c.execute("DELETE FROM transaksi WHERE row_id = ?", (row_id,))
+    c.execute("DELETE FROM transaksi WHERE id = ?", (str(tx_id),))
     conn.commit()
     conn.close()
 
-    # 2. Hapus dari Google Sheets berdasarkan kombinasi nama & keterangan
     if API_URL and "script.google.com" in API_URL:
         try:
             payload = {
                 "action": "DELETE",
-                "nama": nama_str,
-                "tanggal": tgl_str,
-                "keterangan": ket_str,
+                "id": str(tx_id)
             }
             requests.post(API_URL, json=payload, timeout=4)
         except Exception:
@@ -391,16 +408,17 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     table_data = [
         ["Nama", "Tanggal", "Waktu", "Kategori", "Keterangan", "Jenis", "Nominal"]
     ]
-    for idx, row in df_pdf.iterrows():
-        table_data.append([
-            str(row.get("nama", "-")),
-            str(row["tanggal"]),
-            str(row["waktu"]),
-            str(row["kategori"]),
-            str(row["keterangan"]),
-            str(row["jenis"]).upper(),
-            format_rupiah(row["jumlah"]),
-        ])
+    if not df_pdf.empty:
+        for idx, row in df_pdf.iterrows():
+            table_data.append([
+                str(row.get("nama", "-")),
+                str(row["tanggal"]),
+                str(row["waktu"]),
+                str(row["kategori"]),
+                str(row["keterangan"]),
+                str(row["jenis"]).upper(),
+                format_rupiah(row["jumlah"]),
+            ])
 
     t_tx = Table(table_data, colWidths=[75, 55, 40, 75, 120, 50, 85])
     t_tx.setStyle(
@@ -452,7 +470,7 @@ with tab1:
     )
 
     if view_type == "Hari Ini":
-        if not df.empty:
+        if not df.empty and "tanggal" in df.columns:
             df_today = df[df["tanggal"] == today_str]
             df_before = df[df["tanggal"] < today_str]
 
@@ -469,7 +487,7 @@ with tab1:
                 if not df_today.empty
                 else 0.0
             )
-            saldo_akhir_today = float(df.iloc[-1]["saldo"])
+            saldo_akhir_today = float(df.iloc[-1]["saldo"]) if not df.empty else 0.0
         else:
             saldo_awal_today = 0.0
             masuk_today = 0.0
@@ -502,10 +520,10 @@ with tab1:
         total_keluar = 0.0
         saldo_total = 0.0
 
-        if not df.empty:
+        if not df.empty and "jenis" in df.columns:
             total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum())
             total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum())
-            saldo_total = float(df.iloc[-1]["saldo"])
+            saldo_total = float(df.iloc[-1]["saldo"]) if not df.empty else 0.0
 
         st.markdown(
             f"""
@@ -525,7 +543,7 @@ with tab1:
             unsafe_allow_html=True,
         )
 
-    if not df.empty:
+    if not df.empty and len(df) > 0 and "tanggal" in df.columns:
         st.caption("--- TREN SALDO BERJALAN ---")
         fig, ax = plt.subplots(figsize=(5, 2.5))
         fig.patch.set_facecolor("#FBF8F1")
@@ -551,9 +569,9 @@ with tab2:
         force_mirror_sheets()
         st.rerun()
 
-    if not df.empty:
+    if not df.empty and len(df) > 0:
         opsi_tgl = ["Semua tanggal"] + sorted(
-            list(df["tanggal"].unique()), reverse=True
+            list(df["tanggal"].dropna().unique()), reverse=True
         )
         pilihan_tgl = st.selectbox("Filter Tanggal Transaksi", opsi_tgl)
 
@@ -571,7 +589,7 @@ with tab2:
             total_keluar_hari = float(
                 df_filtered[df_filtered["jenis"] == "keluar"]["jumlah"].sum()
             )
-            saldo_akhir_hari = float(df_filtered.iloc[-1]["saldo"])
+            saldo_akhir_hari = float(df_filtered.iloc[-1]["saldo"]) if not df_filtered.empty else 0.0
 
             st.markdown(
                 f"""
@@ -601,7 +619,7 @@ with tab2:
             total_keluar_hari = float(
                 df[df["jenis"] == "keluar"]["jumlah"].sum()
             )
-            saldo_akhir_hari = float(df.iloc[-1]["saldo"])
+            saldo_akhir_hari = float(df.iloc[-1]["saldo"]) if not df.empty else 0.0
 
             st.markdown(
                 f"""
@@ -652,8 +670,8 @@ with tab2:
                 unsafe_allow_html=True,
             )
 
-            if st.button("✕ Hapus", key=f"del_{row['row_id']}"):
-                delete_data(row["row_id"], row.get("nama", ""), row.get("tanggal", ""), row.get("keterangan", ""))
+            if st.button("✕ Hapus", key=f"del_{row['id']}"):
+                delete_data(row["id"])
                 st.rerun()
     else:
         st.info("Belum ada transaksi.")
