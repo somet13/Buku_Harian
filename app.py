@@ -9,16 +9,17 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# ReportLab
+# ReportLab untuk Ekspor PDF
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+# Pengaturan Waktu WIB
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CSS
+# 1. KONFIGURASI HALAMAN & TAMPILAN CSS
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -220,7 +221,7 @@ except Exception:
     API_URL = ""
 
 def get_db():
-    return sqlite3.connect("buku_kas.db")
+    return sqlite3.connect("buku_kas.db", check_same_thread=False)
 
 def init_db():
     conn = get_db()
@@ -238,16 +239,31 @@ def init_db():
         )
     """)
     conn.commit()
+
+    # Periksa dan tambahkan kolom 'nama' otomatis jika belum ada
+    c.execute("PRAGMA table_info(transaksi)")
+    cols = [col[1] for col in c.fetchall()]
+    if "nama" not in cols:
+        try:
+            c.execute("ALTER TABLE transaksi ADD COLUMN nama TEXT DEFAULT '-'")
+            conn.commit()
+        except Exception:
+            pass
+
     conn.close()
 
+# Inisialisasi skema tabel
 init_db()
 
 def clean_amount(val):
     if isinstance(val, (int, float)):
         return float(val)
     val_str = str(val)
-    digits = re.sub(r"[^\d]", "", val_str)
-    return float(digits) if digits else 0.0
+    digits = re.sub(r"[^\d.]", "", val_str)
+    try:
+        return float(digits) if digits else 0.0
+    except Exception:
+        return 0.0
 
 def clean_date_str(d_str):
     d_str = str(d_str or "").strip()
@@ -267,7 +283,7 @@ def clean_time_str(t_str):
 def fetch_from_sheets():
     if API_URL and "script.google.com" in API_URL:
         try:
-            res = requests.get(API_URL, timeout=6)
+            res = requests.get(API_URL, timeout=8, allow_redirects=True)
             if res.status_code == 200:
                 return res.json()
         except Exception:
@@ -277,17 +293,23 @@ def fetch_from_sheets():
 def force_mirror_sheets():
     if API_URL:
         sheets_data = fetch_from_sheets()
-        if sheets_data and isinstance(sheets_data, dict):
-            txs = sheets_data.get("transaksi", [])
+        if sheets_data is not None:
+            if isinstance(sheets_data, list):
+                txs = sheets_data
+            elif isinstance(sheets_data, dict):
+                txs = sheets_data.get("transaksi", sheets_data.get("data", []))
+            else:
+                txs = []
+
             conn = get_db()
             c = conn.cursor()
             c.execute("DELETE FROM transaksi")
 
-            if isinstance(txs, list):
-                for idx, item in enumerate(txs):
+            for idx, item in enumerate(txs):
+                if isinstance(item, dict):
                     try:
                         tx_id = str(item.get("id") or (idx + 1))
-                        nama = str(item.get("nama", "-"))
+                        nama = str(item.get("nama", "-")).strip()
                         tgl = clean_date_str(item.get("tanggal", ""))
                         waktu = clean_time_str(item.get("waktu", ""))
                         kategori = str(item.get("kategori", ""))
@@ -305,21 +327,15 @@ def force_mirror_sheets():
             conn.close()
 
 def load_data():
+    if API_URL:
+        force_mirror_sheets()
+
     conn = get_db()
     try:
         df = pd.read_sql_query("SELECT * FROM transaksi", conn)
     except Exception:
         df = pd.DataFrame()
     conn.close()
-
-    if df.empty and API_URL:
-        force_mirror_sheets()
-        conn = get_db()
-        try:
-            df = pd.read_sql_query("SELECT * FROM transaksi", conn)
-        except Exception:
-            df = pd.DataFrame()
-        conn.close()
 
     if not df.empty:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0.0)
@@ -353,11 +369,12 @@ def format_rupiah(n):
 
 def add_data(nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, jumlah):
     new_id = str(int(time.time() * 1000))
+    
     conn = get_db()
     c = conn.cursor()
     c.execute(
         "INSERT OR REPLACE INTO transaksi (id, nama, tanggal, waktu, kategori, keterangan, jenis, jumlah) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (new_id, nama_str, tgl_str, waktu_str, kategori, keterangan, jenis, float(jumlah)),
+        (new_id, str(nama_str), str(tgl_str), str(waktu_str), str(kategori), str(keterangan), str(jenis), float(jumlah)),
     )
     conn.commit()
     conn.close()
@@ -407,7 +424,7 @@ def delete_data(tx_id):
         except Exception:
             pass
 
-# FUNGSI CETAK PDF
+# FUNGSI CETAK LAPORAN PDF
 def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -739,7 +756,7 @@ with tab3:
 
     with st.form("form_tx", clear_on_submit=True):
         if st.session_state.role == "admin":
-            nama = st.text_input("Nama Pembayar / Penanggung Jawab", placeholder="mis. Firmansyah / Melia / zidan")
+            nama = st.text_input("Nama Pembayar / Penanggung Jawab", placeholder="mis. Firmansyah / Melia / Mamah")
         else:
             nama = st.text_input("Nama Pembayar / Penanggung Jawab", value=st.session_state.user_name, disabled=True)
 
