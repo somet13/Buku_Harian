@@ -9,18 +9,14 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# ReportLab untuk Ekspor PDF
+# ReportLab untuk PDF
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-# Pengaturan Waktu WIB
 WIB = timezone(timedelta(hours=7))
 
-# ==========================================
-# 1. KONFIGURASI HALAMAN & CUSTOM CSS MODERN
-# ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
     page_icon="📖",
@@ -28,108 +24,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-st.markdown(
-    """
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-
-    /* Background Gradient Cyan-Magenta */
-    .stApp {
-        background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 40%, #c026d3 100%) !important;
-        font-family: 'Poppins', sans-serif !important;
-        min-height: 100vh;
-    }
-
-    /* Kartu Login Putih Modern */
-    .login-wrapper {
-        background: #ffffff;
-        border-radius: 20px;
-        padding: 40px 32px 30px 32px;
-        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-        max-width: 380px;
-        margin: 40px auto 20px auto;
-        text-align: center;
-    }
-
-    .login-title {
-        font-size: 28px;
-        font-weight: 700;
-        color: #2b2b2b;
-        margin-bottom: 24px;
-        letter-spacing: 0.5px;
-    }
-
-    /* Input Minimalis Underline */
-    .login-wrapper input {
-        border: none !important;
-        border-bottom: 2px solid #e0e0e0 !important;
-        border-radius: 0px !important;
-        background: transparent !important;
-        font-size: 14px !important;
-        padding: 10px 4px !important;
-        color: #333333 !important;
-        box-shadow: none !important;
-    }
-    .login-wrapper input:focus {
-        border-bottom: 2px solid #a855f7 !important;
-    }
-
-    .login-wrapper label {
-        font-size: 12px !important;
-        color: #888888 !important;
-        font-weight: 500 !important;
-    }
-
-    /* Tombol Login Gradient */
-    .login-wrapper button {
-        background: linear-gradient(90deg, #00d2ff 0%, #a855f7 100%) !important;
-        color: #ffffff !important;
-        font-size: 15px !important;
-        font-weight: 600 !important;
-        border-radius: 25px !important;
-        border: none !important;
-        padding: 12px 0px !important;
-        width: 100% !important;
-        margin-top: 15px !important;
-        box-shadow: 0 6px 15px rgba(168, 85, 247, 0.4) !important;
-        transition: all 0.3s ease;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    .login-wrapper button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(168, 85, 247, 0.6) !important;
-    }
-
-    /* Social Dots */
-    .social-divider {
-        font-size: 11px;
-        color: #9e9e9e;
-        margin: 24px 0 16px 0;
-    }
-    .social-icons {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        margin-bottom: 10px;
-    }
-    .social-dot {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        display: inline-block;
-    }
-    .dot-1 { background-color: #3b5998; }
-    .dot-2 { background-color: #00aced; }
-    .dot-3 { background-color: #ea4335; }
-    .dot-4 { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
 # ==========================================
-# 2. SISTEM LOGIN & DAFTAR AKUN
+# 1. MANAJEMEN SESI & AKUN LOGIN
 # ==========================================
 USER_ACCOUNTS = {
     "admin": {"password": "admin123", "nama": "Administrator", "role": "admin"},
@@ -144,102 +40,130 @@ if "logged_in" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.role = ""
 
-# JIKA BELUM LOGIN -> TAMPILKAN CARD MODERN
+# ==========================================
+# 2. TAMPILAN KHUSUS HALAMAN LOGIN
+# ==========================================
 if not st.session_state.logged_in:
-    # Custom CSS khusus halaman Login (Gradient + Card Modern)
     st.markdown(
         """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-        /* Latar Belakang Gradient Cyan-Magenta khusus login */
+        /* Background Gradient Cyan-Magenta */
         .stApp {
             background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 40%, #c026d3 100%) !important;
             font-family: 'Poppins', sans-serif !important;
+            min-height: 100vh;
         }
 
-        /* Kartu Putih Melengkung */
-        .login-wrapper {
+        /* Hilangkan header bawaan streamlit saat login */
+        header { visibility: hidden; }
+        footer { visibility: hidden; }
+
+        /* Kartu Login Putih */
+        .login-card-container {
             background: #ffffff;
-            border-radius: 20px;
-            padding: 35px 28px 25px 28px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            border-radius: 24px;
+            padding: 40px 32px 30px 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
             max-width: 380px;
-            margin: 20px auto;
+            margin: 30px auto 10px auto;
             text-align: center;
         }
 
-        .login-title {
-            font-size: 26px;
+        .login-title-text {
+            font-size: 30px;
             font-weight: 700;
             color: #2b2b2b;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            letter-spacing: 0.5px;
         }
 
-        /* Input Garis Bawah (Underline) */
-        .login-wrapper input {
+        /* Kolom Input Minimalis Underline */
+        div[data-testid="stTextInput"] input {
             border: none !important;
             border-bottom: 2px solid #e0e0e0 !important;
             border-radius: 0px !important;
-            background: transparent !important;
+            background-color: transparent !important;
             font-size: 14px !important;
             padding: 8px 2px !important;
             color: #333333 !important;
             box-shadow: none !important;
         }
-        .login-wrapper input:focus {
+
+        div[data-testid="stTextInput"] input:focus {
             border-bottom: 2px solid #a855f7 !important;
         }
 
-        /* Tombol Gradient */
-        .login-wrapper button {
-            background: linear-gradient(90deg, #00d2ff 0%, #a855f7 100%) !important;
-            color: #ffffff !important;
-            font-size: 14px !important;
-            font-weight: 600 !important;
-            border-radius: 25px !important;
-            border: none !important;
-            padding: 10px 0px !important;
-            width: 100% !important;
-            margin-top: 15px !important;
-            box-shadow: 0 6px 15px rgba(168, 85, 247, 0.4) !important;
-            letter-spacing: 1px;
+        div[data-testid="stTextInput"] label {
+            font-size: 12px !important;
+            color: #666666 !important;
+            font-weight: 500 !important;
         }
 
-        /* Bulatan Sosial Media */
+        /* Tombol LOGIN Gradient */
+        div[data-testid="stFormSubmitButton"] button {
+            background: linear-gradient(90deg, #00d2ff 0%, #a855f7 100%) !important;
+            color: #ffffff !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            border-radius: 30px !important;
+            border: none !important;
+            padding: 12px 0px !important;
+            width: 100% !important;
+            margin-top: 15px !important;
+            box-shadow: 0 6px 18px rgba(168, 85, 247, 0.4) !important;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: 0.3s ease;
+        }
+
+        div[data-testid="stFormSubmitButton"] button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(168, 85, 247, 0.6) !important;
+        }
+
+        /* Bagian Bawah: Or Sign Up Using */
         .social-divider {
             font-size: 11px;
             color: #9e9e9e;
-            margin: 20px 0 12px 0;
+            margin: 25px 0 16px 0;
+            font-weight: 500;
         }
-        .social-icons {
+
+        .social-icons-wrapper {
             display: flex;
             justify-content: center;
             gap: 12px;
+            margin-bottom: 5px;
         }
-        .social-dot {
-            width: 28px;
-            height: 28px;
+
+        .social-circle {
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             display: inline-block;
+            cursor: pointer;
+            transition: 0.2s ease;
         }
-        .dot-1 { background-color: #3b5998; }
-        .dot-2 { background-color: #00aced; }
-        .dot-3 { background-color: #ea4335; }
-        .dot-4 { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+        .social-circle:hover { transform: scale(1.1); }
+        .bg-fb { background-color: #3b5998; }
+        .bg-tw { background-color: #00aced; }
+        .bg-gg { background-color: #ea4335; }
+        .bg-ig { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
     </style>
     """,
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="login-wrapper"><div class="login-title">Login</div>', unsafe_allow_html=True)
-    
+    st.markdown('<div class="login-card-container"><div class="login-title-text">Login</div>', unsafe_allow_html=True)
+
     with st.form("form_login"):
         u_input = st.text_input("👤 Username", placeholder="Type your username")
         p_input = st.text_input("🔒 Password", type="password", placeholder="Type your password")
-        
-        st.markdown("<div style='text-align:right; font-size:11px; color:#888; margin-top:-6px; margin-bottom:10px;'>Forgot password?</div>", unsafe_allow_html=True)
-        
+
+        st.markdown("<div style='text-align:right; font-size:11px; color:#888; margin-top:-6px; margin-bottom:12px; cursor:pointer;'>Forgot password?</div>", unsafe_allow_html=True)
+
         btn_login = st.form_submit_button("LOGIN")
 
         if btn_login:
@@ -257,11 +181,11 @@ if not st.session_state.logged_in:
     st.markdown(
         """
         <div class="social-divider">Or Sign Up Using</div>
-        <div class="social-icons">
-            <span class="social-dot dot-1"></span>
-            <span class="social-dot dot-2"></span>
-            <span class="social-dot dot-3"></span>
-            <span class="social-dot dot-4"></span>
+        <div class="social-icons-wrapper">
+            <span class="social-circle bg-fb"></span>
+            <span class="social-circle bg-tw"></span>
+            <span class="social-circle bg-gg"></span>
+            <span class="social-circle bg-ig"></span>
         </div>
     </div>
     """,
@@ -270,7 +194,124 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ==========================================
-# 3. KONEKSI GOOGLE SHEETS & DATABASE
+# 3. TAMPILAN CSS KHUSUS DASHBOARD KASIR (SETELAH LOGIN)
+# ==========================================
+st.markdown(
+    """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+    .stApp {
+        background-color: #EAE4D6 !important;
+        max-width: 480px;
+        margin: 0 auto;
+        font-family: 'IBM Plex Mono', monospace !important;
+        color: #2A241D !important;
+    }
+
+    .app-header {
+        text-align: center;
+        padding: 16px 8px;
+        background: #FBF8F1;
+        border: 2px solid #2A241D;
+        border-bottom: 2px dashed #2A241D;
+        border-radius: 8px 8px 0 0;
+        margin-bottom: 12px;
+    }
+    .app-title {
+        font-family: 'Space Mono', monospace;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: 2px;
+        color: #2A241D;
+        margin: 0;
+    }
+    .app-subtitle {
+        font-size: 11px;
+        color: #6B6151;
+        letter-spacing: 1px;
+        margin-top: 4px;
+        font-weight: 600;
+    }
+
+    .saldo-banner {
+        background: #2A241D;
+        color: #FFC23D;
+        padding: 16px;
+        border-radius: 6px;
+        text-align: center;
+        font-family: 'Space Mono', monospace;
+        margin: 12px 0;
+    }
+    .saldo-banner-title {
+        font-size: 11px;
+        color: #D3C8B2;
+        letter-spacing: 1px;
+    }
+    .saldo-banner-value {
+        font-size: 24px;
+        font-weight: 700;
+        margin-top: 4px;
+    }
+
+    .stat-card {
+        background: #FBF8F1;
+        border: 1.5px solid #2A241D;
+        border-left: 4px solid #2A241D;
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+    .stat-card.in { border-left-color: #1E7A4C; }
+    .stat-card.out { border-left-color: #C2402A; }
+    .stat-label { font-size: 11px; color: #6B6151; }
+    .stat-value { font-size: 16px; font-weight: 700; margin-top: 2px; }
+
+    .tx-item {
+        background: #FBF8F1;
+        border: 1.5px solid #2A241D;
+        padding: 10px;
+        margin-bottom: 8px;
+        border-radius: 6px;
+    }
+    .tx-name-badge {
+        font-size: 13px;
+        font-weight: 700;
+        color: #2A241D;
+        margin-bottom: 4px;
+    }
+    .tx-time-badge {
+        font-size: 11px;
+        font-weight: 700;
+        color: #2A241D;
+        background-color: #EAE4D6;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    .tx-desc { font-size: 13px; font-weight: 600; color: #2A241D; margin-top: 4px; }
+    .tx-cat { font-size: 10px; color: #6B6151; border: 1px solid #D3C8B2; padding: 1px 4px; border-radius: 3px; }
+    .tx-amount-masuk { color: #1E7A4C; font-weight: 700; font-size: 14px; }
+    .tx-amount-keluar { color: #C2402A; font-weight: 700; font-size: 14px; }
+    .tx-saldo { font-size: 11px; color: #6B6151; text-align: right; margin-top: 2px; }
+
+    .stButton>button, .stDownloadButton>button {
+        background-color: #2A241D !important;
+        color: #FFC23D !important;
+        font-family: 'Space Mono', monospace !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        border-radius: 6px !important;
+        width: 100%;
+        padding: 8px !important;
+        border: None !important;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ==========================================
+# 4. KONEKSI GOOGLE SHEETS & DATABASE
 # ==========================================
 try:
     API_URL = st.secrets["connections"]["gsheets"]["api_url"]
@@ -297,7 +338,6 @@ def init_db():
     """)
     conn.commit()
 
-    # Periksa dan tambahkan kolom 'nama' otomatis jika belum ada
     c.execute("PRAGMA table_info(transaksi)")
     cols = [col[1] for col in c.fetchall()]
     if "nama" not in cols:
@@ -309,7 +349,6 @@ def init_db():
 
     conn.close()
 
-# Inisialisasi skema tabel
 init_db()
 
 def clean_amount(val):
@@ -400,12 +439,10 @@ def load_data():
         if "nama" not in df.columns:
             df["nama"] = "-"
 
-        # Filter akun jika bukan admin
         if st.session_state.role != "admin":
             target = st.session_state.user_name.lower().strip()
             df = df[df["nama"].astype(str).str.lower().str.strip() == target].copy()
 
-        # Hitung Saldo Berjalan
         running_saldo = 0.0
         saldos = []
         for _, row in df.iterrows():
@@ -481,7 +518,6 @@ def delete_data(tx_id):
         except Exception:
             pass
 
-# FUNGSI CETAK LAPORAN PDF
 def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -561,7 +597,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2A241D")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#FFC23D")),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#2A241D")),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9F9F9")]),
@@ -573,7 +609,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     return buffer
 
 # ==========================================
-# 4. HEADER APLIKASI & LOGOUT
+# 5. HEADER APLIKASI & LOGOUT
 # ==========================================
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
@@ -601,7 +637,7 @@ df = load_data()
 today_str = str(datetime.now(WIB).date())
 
 # ==========================================
-# 5. TAB NAVIGASI UTAMA
+# 6. TAB NAVIGASI UTAMA
 # ==========================================
 tab1, tab2, tab3 = st.tabs(["Dashboard", "Transaksi", "Input"])
 
