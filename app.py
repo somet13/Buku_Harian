@@ -146,13 +146,99 @@ if "logged_in" not in st.session_state:
 
 # JIKA BELUM LOGIN -> TAMPILKAN CARD MODERN
 if not st.session_state.logged_in:
+    # Custom CSS khusus halaman Login (Gradient + Card Modern)
+    st.markdown(
+        """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        /* Latar Belakang Gradient Cyan-Magenta khusus login */
+        .stApp {
+            background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 40%, #c026d3 100%) !important;
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        /* Kartu Putih Melengkung */
+        .login-wrapper {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 35px 28px 25px 28px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            max-width: 380px;
+            margin: 20px auto;
+            text-align: center;
+        }
+
+        .login-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: #2b2b2b;
+            margin-bottom: 20px;
+        }
+
+        /* Input Garis Bawah (Underline) */
+        .login-wrapper input {
+            border: none !important;
+            border-bottom: 2px solid #e0e0e0 !important;
+            border-radius: 0px !important;
+            background: transparent !important;
+            font-size: 14px !important;
+            padding: 8px 2px !important;
+            color: #333333 !important;
+            box-shadow: none !important;
+        }
+        .login-wrapper input:focus {
+            border-bottom: 2px solid #a855f7 !important;
+        }
+
+        /* Tombol Gradient */
+        .login-wrapper button {
+            background: linear-gradient(90deg, #00d2ff 0%, #a855f7 100%) !important;
+            color: #ffffff !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            border-radius: 25px !important;
+            border: none !important;
+            padding: 10px 0px !important;
+            width: 100% !important;
+            margin-top: 15px !important;
+            box-shadow: 0 6px 15px rgba(168, 85, 247, 0.4) !important;
+            letter-spacing: 1px;
+        }
+
+        /* Bulatan Sosial Media */
+        .social-divider {
+            font-size: 11px;
+            color: #9e9e9e;
+            margin: 20px 0 12px 0;
+        }
+        .social-icons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+        .social-dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-1 { background-color: #3b5998; }
+        .dot-2 { background-color: #00aced; }
+        .dot-3 { background-color: #ea4335; }
+        .dot-4 { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown('<div class="login-wrapper"><div class="login-title">Login</div>', unsafe_allow_html=True)
     
     with st.form("form_login"):
         u_input = st.text_input("👤 Username", placeholder="Type your username")
         p_input = st.text_input("🔒 Password", type="password", placeholder="Type your password")
         
-        st.markdown("<div style='text-align:right; font-size:11px; color:#888; margin-top:-6px; margin-bottom:12px;'>Forgot password?</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:right; font-size:11px; color:#888; margin-top:-6px; margin-bottom:10px;'>Forgot password?</div>", unsafe_allow_html=True)
         
         btn_login = st.form_submit_button("LOGIN")
 
