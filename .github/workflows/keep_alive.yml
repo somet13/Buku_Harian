@@ -1,0 +1,16 @@
+name: Keep Streamlit App Alive
+
+on:
+  schedule:
+    # Berjalan otomatis setiap 30 menit
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Memungkinkan kamu menjalankan manual jika ingin tes
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit App
+        run: |
+          # Ganti URL di bawah dengan link aplikasi Streamlit kamu yang ada di tangkapan layar
+          curl -s -o /dev/null -w "%{http_code}\n" https://buku-harian-firman.streamlit.app/
