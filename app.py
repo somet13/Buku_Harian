@@ -19,7 +19,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TAMPILAN CSS
+# 1. KONFIGURASI HALAMAN & CUSTOM CSS MODERN
 # ==========================================
 st.set_page_config(
     page_title="Buku Kas Harian",
@@ -31,138 +31,98 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
+    /* Background Gradient Cyan-Magenta */
     .stApp {
-        background-color: #EAE4D6;
-        max-width: 480px;
-        margin: 0 auto;
-        font-family: 'IBM Plex Mono', monospace;
-        color: #2A241D;
+        background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 40%, #c026d3 100%) !important;
+        font-family: 'Poppins', sans-serif !important;
+        min-height: 100vh;
     }
 
-    .login-card {
-        background: #FBF8F1;
-        border: 2px solid #2A241D;
-        border-radius: 8px;
-        padding: 24px 20px;
-        margin-top: 40px;
-        margin-bottom: 20px;
+    /* Kartu Login Putih Modern */
+    .login-wrapper {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 40px 32px 30px 32px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        max-width: 380px;
+        margin: 40px auto 20px auto;
         text-align: center;
-        box-shadow: 4px 4px 0px #2A241D;
     }
+
     .login-title {
-        font-family: 'Space Mono', monospace;
+        font-size: 28px;
         font-weight: 700;
-        font-size: 22px;
-        color: #2A241D;
-        letter-spacing: 2px;
-        margin-bottom: 4px;
-    }
-    .login-subtitle {
-        font-size: 11px;
-        color: #6B6151;
-        font-weight: 600;
-        letter-spacing: 1px;
-        margin-bottom: 16px;
+        color: #2b2b2b;
+        margin-bottom: 24px;
+        letter-spacing: 0.5px;
     }
 
-    .app-header {
-        text-align: center;
-        padding: 16px 8px;
-        background: #FBF8F1;
-        border: 2px solid #2A241D;
-        border-bottom: 2px dashed #2A241D;
-        border-radius: 8px 8px 0 0;
-        margin-bottom: 12px;
+    /* Input Minimalis Underline */
+    .login-wrapper input {
+        border: none !important;
+        border-bottom: 2px solid #e0e0e0 !important;
+        border-radius: 0px !important;
+        background: transparent !important;
+        font-size: 14px !important;
+        padding: 10px 4px !important;
+        color: #333333 !important;
+        box-shadow: none !important;
     }
-    .app-title {
-        font-family: 'Space Mono', monospace;
-        font-weight: 700;
-        font-size: 20px;
-        letter-spacing: 2px;
-        color: #2A241D;
-        margin: 0;
-    }
-    .app-subtitle {
-        font-size: 11px;
-        color: #6B6151;
-        letter-spacing: 1px;
-        margin-top: 4px;
-        font-weight: 600;
+    .login-wrapper input:focus {
+        border-bottom: 2px solid #a855f7 !important;
     }
 
-    .saldo-banner {
-        background: #2A241D;
-        color: #FFC23D;
-        padding: 16px;
-        border-radius: 6px;
-        text-align: center;
-        font-family: 'Space Mono', monospace;
-        margin: 12px 0;
+    .login-wrapper label {
+        font-size: 12px !important;
+        color: #888888 !important;
+        font-weight: 500 !important;
     }
-    .saldo-banner-title {
-        font-size: 11px;
-        color: #D3C8B2;
+
+    /* Tombol Login Gradient */
+    .login-wrapper button {
+        background: linear-gradient(90deg, #00d2ff 0%, #a855f7 100%) !important;
+        color: #ffffff !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        border-radius: 25px !important;
+        border: none !important;
+        padding: 12px 0px !important;
+        width: 100% !important;
+        margin-top: 15px !important;
+        box-shadow: 0 6px 15px rgba(168, 85, 247, 0.4) !important;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
         letter-spacing: 1px;
     }
-    .saldo-banner-value {
-        font-size: 24px;
-        font-weight: 700;
-        margin-top: 4px;
+    .login-wrapper button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(168, 85, 247, 0.6) !important;
     }
 
-    .stat-card {
-        background: #FBF8F1;
-        border: 1.5px solid #2A241D;
-        border-left: 4px solid #2A241D;
-        padding: 10px 12px;
-        border-radius: 6px;
-        margin-bottom: 8px;
-    }
-    .stat-card.in { border-left-color: #1E7A4C; }
-    .stat-card.out { border-left-color: #C2402A; }
-    .stat-label { font-size: 11px; color: #6B6151; }
-    .stat-value { font-size: 16px; font-weight: 700; margin-top: 2px; }
-
-    .tx-item {
-        background: #FBF8F1;
-        border: 1.5px solid #2A241D;
-        padding: 10px;
-        margin-bottom: 8px;
-        border-radius: 6px;
-    }
-    .tx-name-badge {
-        font-size: 13px;
-        font-weight: 700;
-        color: #2A241D;
-        margin-bottom: 4px;
-    }
-    .tx-time-badge {
+    /* Social Dots */
+    .social-divider {
         font-size: 11px;
-        font-weight: 700;
-        color: #2A241D;
-        background-color: #EAE4D6;
-        padding: 2px 6px;
-        border-radius: 4px;
+        color: #9e9e9e;
+        margin: 24px 0 16px 0;
     }
-    .tx-desc { font-size: 13px; font-weight: 600; color: #2A241D; margin-top: 4px; }
-    .tx-cat { font-size: 10px; color: #6B6151; border: 1px solid #D3C8B2; padding: 1px 4px; border-radius: 3px; }
-    .tx-amount-masuk { color: #1E7A4C; font-weight: 700; font-size: 14px; }
-    .tx-amount-keluar { color: #C2402A; font-weight: 700; font-size: 14px; }
-    .tx-saldo { font-size: 11px; color: #6B6151; text-align: right; margin-top: 2px; }
-
-    .stButton>button, .stDownloadButton>button {
-        background-color: #2A241D !important;
-        color: #FFC23D !important;
-        font-family: 'Space Mono', monospace !important;
-        font-size: 13px !important;
-        font-weight: 700 !important;
-        border-radius: 6px !important;
-        width: 100%;
-        padding: 8px !important;
-        border: None !important;
+    .social-icons {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 10px;
     }
+    .social-dot {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .dot-1 { background-color: #3b5998; }
+    .dot-2 { background-color: #00aced; }
+    .dot-3 { background-color: #ea4335; }
+    .dot-4 { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
 </style>
 """,
     unsafe_allow_html=True,
@@ -184,20 +144,17 @@ if "logged_in" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.role = ""
 
+# JIKA BELUM LOGIN -> TAMPILKAN CARD MODERN
 if not st.session_state.logged_in:
-    st.markdown(
-        """
-    <div class="login-card">
-        <div class="login-title">📖 BUKU KAS</div>
-        <div class="login-subtitle">LOGIN</div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="login-wrapper"><div class="login-title">Login</div>', unsafe_allow_html=True)
+    
     with st.form("form_login"):
-        u_input = st.text_input("Username", placeholder="Masukkan username")
-        p_input = st.text_input("Password", type="password", placeholder="Masukkan password")
-        btn_login = st.form_submit_button("MASUK / LOGIN ➔")
+        u_input = st.text_input("👤 Username", placeholder="Type your username")
+        p_input = st.text_input("🔒 Password", type="password", placeholder="Type your password")
+        
+        st.markdown("<div style='text-align:right; font-size:11px; color:#888; margin-top:-6px; margin-bottom:12px;'>Forgot password?</div>", unsafe_allow_html=True)
+        
+        btn_login = st.form_submit_button("LOGIN")
 
         if btn_login:
             clean_u = u_input.strip().lower()
@@ -210,6 +167,20 @@ if not st.session_state.logged_in:
                 st.rerun()
             else:
                 st.error("Username atau Password salah!")
+
+    st.markdown(
+        """
+        <div class="social-divider">Or Sign Up Using</div>
+        <div class="social-icons">
+            <span class="social-dot dot-1"></span>
+            <span class="social-dot dot-2"></span>
+            <span class="social-dot dot-3"></span>
+            <span class="social-dot dot-4"></span>
+        </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 # ==========================================
