@@ -189,7 +189,7 @@ if not st.session_state.logged_in:
         """
     <div class="login-card">
         <div class="login-title">📖 BUKU KAS</div>
-        <div class="login-subtitle">GERBANG MASUK APLIKASI</div>
+        <div class="login-subtitle">LOGIN</div>
     </div>
     """,
         unsafe_allow_html=True,
