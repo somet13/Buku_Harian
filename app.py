@@ -95,6 +95,20 @@ st.markdown(
     }
     .brand-title span { color: #3b82f6; }
 
+    /* Jam Real-Time Badge */
+    .realtime-badge {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 11.5px;
+        color: #38bdf8;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
     /* Ringkasan Saldo */
     .saldo-main-card {
         background: #0f172a;
@@ -142,21 +156,22 @@ st.markdown(
     .sub-card-value.in { color: #10b981; }
     .sub-card-value.out { color: #ef4444; }
 
-    /* ======================================================= */
-    /* PERBAIKAN INPUT & PLACEHOLDER AGAR TERBACA JELAS */
-    /* ======================================================= */
+    /* Input & Placeholder */
     div[data-testid="stTextInput"] label,
     div[data-testid="stNumberInput"] label,
-    div[data-testid="stSelectbox"] label {
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stDateInput"] label,
+    div[data-testid="stTimeInput"] label {
         color: #cbd5e1 !important;
         font-size: 12px !important;
         font-weight: 600 !important;
         margin-bottom: 4px !important;
     }
 
-    /* Input Biasa & Input Terkunci (Disabled) */
     div[data-testid="stTextInput"] input, 
-    div[data-testid="stNumberInput"] input {
+    div[data-testid="stNumberInput"] input,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stTimeInput"] input {
         background-color: #131b2e !important;
         border: 1px solid #334155 !important;
         color: #ffffff !important;
@@ -168,7 +183,6 @@ st.markdown(
         opacity: 1 !important;
     }
 
-    /* Warna Teks Placeholder */
     div[data-testid="stTextInput"] input::placeholder, 
     div[data-testid="stNumberInput"] input::placeholder {
         color: #64748b !important;
@@ -177,7 +191,6 @@ st.markdown(
         opacity: 1 !important;
     }
 
-    /* Dropdown / Selectbox */
     div[data-testid="stSelectbox"] div[data-baseweb="select"] {
         background-color: #131b2e !important;
         border: 1px solid #334155 !important;
@@ -191,17 +204,13 @@ st.markdown(
         font-weight: 500 !important;
     }
 
-    /* Tombol Plus Minus pada NumberInput */
     div[data-testid="stNumberInput"] button {
         background-color: #1e293b !important;
         color: #ffffff !important;
         border: 1px solid #334155 !important;
     }
-    div[data-testid="stNumberInput"] button:hover {
-        background-color: #3b82f6 !important;
-    }
 
-    /* Tab Navigasi */
+    /* Tabs */
     div[data-testid="stTabs"] button {
         font-size: 13px !important;
         font-weight: 600 !important;
@@ -213,7 +222,7 @@ st.markdown(
         border-bottom-color: #3b82f6 !important;
     }
 
-    /* Tombol Submit Simpan Transaksi (Biru Terang + Teks Putih Tebal) */
+    /* Buttons */
     div[data-testid="stFormSubmitButton"] button {
         background-color: #3b82f6 !important;
         border: none !important;
@@ -230,10 +239,9 @@ st.markdown(
         color: #ffffff !important;
         font-size: 14px !important;
         font-weight: 700 !important;
-        letter-spacing: 0.3px !important;
     }
 
-    /* Card Item Riwayat Kas */
+    /* Transaksi Item Card */
     .tx-mobile-card {
         background: #0f172a;
         border: 1px solid #1e293b;
@@ -464,6 +472,7 @@ def load_data():
         if "nama" not in df.columns:
             df["nama"] = "-"
 
+        # Filter akun jika bukan admin
         if st.session_state.role != "admin":
             target = st.session_state.user_name.lower().strip()
             df = df[df["nama"].astype(str).str.lower().str.strip() == target].copy()
@@ -634,18 +643,20 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     return buffer
 
 # ==========================================
-# 4. NAVBAR HEADER ATAS
+# 4. NAVBAR & WAKTU REAL-TIME (WIB)
 # ==========================================
 df = load_data()
-today_str = str(datetime.now(WIB).date())
+now_wib = datetime.now(WIB)
+today_str = str(now_wib.date())
 
 col_n1, col_n2 = st.columns([3, 1])
 with col_n1:
+    role_badge = "👑 Admin" if st.session_state.role == "admin" else f"👤 {st.session_state.user_name}"
     st.markdown(
         f"""
     <div class="brand-title">
         <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> BUKU<span>KAS</span>
-        <span style="font-size:12px; color:#94a3b8; font-weight:400;">({st.session_state.user_name})</span>
+        <span style="font-size:12px; color:#94a3b8; font-weight:400;">({role_badge})</span>
     </div>
     """,
         unsafe_allow_html=True,
@@ -657,6 +668,17 @@ with col_n2:
         st.session_state.user_name = ""
         st.session_state.role = ""
         st.rerun()
+
+# Menampilkan Waktu Real-Time
+st.markdown(
+    f"""
+<div class="realtime-badge">
+    <span><i class="fa-regular fa-calendar-days"></i> {now_wib.strftime('%A, %d %b %Y')}</span>
+    <span><i class="fa-regular fa-clock"></i> {now_wib.strftime('%H:%M:%S')} WIB</span>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
 # ==========================================
 # 5. RINGKASAN SALDO
@@ -703,13 +725,18 @@ with tab_input:
         "Gaji/Upah",
         "Lainnya",
     ]
-    now_wib = datetime.now(WIB)
 
     with st.form("form_tx", clear_on_submit=True):
         if st.session_state.role == "admin":
-            nama = st.text_input("Nama / Pihak", placeholder="Contoh: Firmansyah / Toko Ani")
+            nama = st.text_input("Nama / Pihak", placeholder="Contoh: Firmansyah / Melia / Mamah")
         else:
             nama = st.text_input("Nama / Pihak", value=st.session_state.user_name, disabled=True)
+
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            tanggal_tx = st.date_input("Tanggal", value=now_wib.date())
+        with col_t2:
+            jam_tx = st.time_input("Waktu (WIB)", value=now_wib.time())
 
         keterangan = st.text_input("Keterangan", placeholder="Contoh: Iuran kas / Beli bensin")
         jumlah = st.number_input("Nominal (Rp)", min_value=0.0, step=10000.0)
@@ -733,24 +760,41 @@ with tab_input:
             elif jumlah <= 0:
                 st.error("Isi nominal transaksi terlebih dahulu.")
             else:
-                tgl_str = today_str
-                waktu_str = now_wib.strftime("%H:%M")
+                tgl_str = str(tanggal_tx)
+                waktu_str = jam_tx.strftime("%H:%M")
                 add_data(final_nama, tgl_str, waktu_str, kategori, keterangan or "-", jenis, jumlah)
                 st.success("Tersimpan! ✓")
                 st.rerun()
 
 # ------------------------------------------
-# TAB 2: RIWAYAT KAS
+# TAB 2: RIWAYAT KAS (DENGAN PENCARIAN ADMIN)
 # ------------------------------------------
 with tab_history:
+    # FITUR PENCARIAN & FILTER KHUSUS ADMIN
+    df_filtered = df.copy()
+    if st.session_state.role == "admin" and not df.empty:
+        st.markdown("<span style='font-size:12px; font-weight:600; color:#38bdf8;'>🔍 Filter Data (Admin Mode):</span>", unsafe_allow_html=True)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            nama_list = sorted([str(n) for n in df["nama"].dropna().unique() if str(n).strip() != ""])
+            pilihan_nama = st.selectbox("👤 Cari / Filter Nama", ["Semua Nama"] + nama_list)
+        with col_s2:
+            tgl_list = sorted(list(df["tanggal"].dropna().unique()), reverse=True)
+            pilihan_tgl = st.selectbox("📅 Filter Tanggal", ["Semua Tanggal"] + tgl_list)
+
+        if pilihan_nama != "Semua Nama":
+            df_filtered = df_filtered[df_filtered["nama"] == pilihan_nama]
+        if pilihan_tgl != "Semua Tanggal":
+            df_filtered = df_filtered[df_filtered["tanggal"] == pilihan_tgl]
+
     col_b1, col_b2 = st.columns(2)
     with col_b1:
         if st.button("🔄 Sync", use_container_width=True):
             force_mirror_sheets()
             st.rerun()
 
-    if not df.empty and len(df) > 0:
-        pdf_bytes = generate_pdf(df, 0.0, total_masuk, total_keluar, saldo_total)
+    if not df_filtered.empty and len(df_filtered) > 0:
+        pdf_bytes = generate_pdf(df_filtered, 0.0, total_masuk, total_keluar, saldo_total)
         with col_b2:
             st.download_button(
                 label="📄 Unduh PDF",
@@ -760,8 +804,8 @@ with tab_history:
                 use_container_width=True
             )
 
-        st.caption(f"Total: {len(df)} Transaksi")
-        for idx, row in df.iloc[::-1].iterrows():
+        st.caption(f"Menampilkan: {len(df_filtered)} Transaksi")
+        for idx, row in df_filtered.iloc[::-1].iterrows():
             is_masuk = row["jenis"] == "masuk"
             badge_cls = "badge-in" if is_masuk else "badge-out"
             sign = "+" if is_masuk else "-"
@@ -793,4 +837,4 @@ with tab_history:
                     delete_data(row["id"])
                     st.rerun()
     else:
-        st.info("Belum ada catatan kas.")
+        st.info("Tidak ada data transaksi yang cocok.")
