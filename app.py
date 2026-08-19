@@ -21,7 +21,7 @@ WIB = timezone(timedelta(hours=7))
 # 1. KONFIGURASI MOBILE-FIRST & CSS DARK
 # ==========================================
 st.set_page_config(
-    page_title="BUKU KAS",
+    page_title="KasKu Mobile",
     page_icon="💳",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -85,13 +85,6 @@ st.markdown(
     }
 
     /* Top Navbar Box */
-    .mobile-navbar {
-        background-color: #0d1527;
-        border: 1px solid #1e293b;
-        border-radius: 12px;
-        padding: 10px 14px;
-        margin-bottom: 14px;
-    }
     .brand-title {
         font-size: 17px;
         font-weight: 700;
@@ -179,19 +172,39 @@ st.markdown(
         border-bottom-color: #3b82f6 !important;
     }
 
-    /* Tombol Biru */
-    div[data-testid="stFormSubmitButton"] button, 
-    .stButton>button, 
-    .stDownloadButton>button {
+    /* ========================================= */
+    /* PERBAIKAN WARNA TOMBOL AGAR TEKS KELIHATAN */
+    /* ========================================= */
+
+    /* 1. Tombol Utama (Biru Terang) */
+    button[kind="primary"] {
         background-color: #3b82f6 !important;
-        color: #ffffff !important;
         border: none !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        font-size: 13px !important;
-        padding: 10px !important;
-        width: 100% !important;
+        border-radius: 8px !important;
         min-height: 42px !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #2563eb !important;
+    }
+    /* Paksa teks di dalam tombol primary menjadi putih terang */
+    button[kind="primary"] * {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+
+    /* 2. Tombol Sekunder (Keluar / Hapus) */
+    button[kind="secondary"] {
+        background-color: rgba(239, 68, 68, 0.1) !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+        border-radius: 8px !important;
+    }
+    button[kind="secondary"]:hover {
+        background-color: rgba(239, 68, 68, 0.2) !important;
+    }
+    /* Paksa teks di dalam tombol secondary menjadi merah terang */
+    button[kind="secondary"] * {
+        color: #ef4444 !important;
+        font-weight: 600 !important;
     }
 
     /* Card Item Riwayat Kas */
@@ -271,7 +284,7 @@ if not st.session_state.logged_in:
         """
     <div class="login-card">
         <div class="login-icon"><i class="fa-solid fa-lock"></i></div>
-        <div class="login-title">LOGIN APLIKASI BUKU KAS</div>
+        <div class="login-title">Kunci Aplikasi Kas</div>
         <div class="login-desc">Masukkan Username & Password untuk membuka catatan kas kamu.</div>
     </div>
     """,
@@ -280,7 +293,9 @@ if not st.session_state.logged_in:
     with st.form("form_login"):
         u_input = st.text_input("Username", placeholder="Masukkan username")
         p_input = st.text_input("Password", type="password", placeholder="Masukkan password")
-        btn_login = st.form_submit_button("LOGIN ➔")
+        
+        # Mengubah tombol login menjadi primary (Biru/Putih)
+        btn_login = st.form_submit_button("Buka Kunci ➔", type="primary")
 
         if btn_login:
             clean_u = u_input.strip().lower()
@@ -604,14 +619,15 @@ with col_n1:
     st.markdown(
         f"""
     <div class="brand-title">
-        <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> BUKU<span>KAS</span>
+        <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> Kas<span>Ku</span>
         <span style="font-size:11px; color:#64748b; font-weight:400;">({st.session_state.user_name})</span>
     </div>
     """,
         unsafe_allow_html=True,
     )
 with col_n2:
-    if st.button("🔒 LOGOUT"):
+    # Menggunakan type secondary untuk logout agar warnanya merah
+    if st.button("🔒 Keluar", type="secondary", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.user_name = ""
@@ -684,7 +700,8 @@ with tab_input:
                 format_func=lambda x: "Pemasukan (+)" if x == "masuk" else "Pengeluaran (-)"
             )
 
-        submit = st.form_submit_button("➕ Simpan Transaksi")
+        # Mengubah tombol simpan transaksi menjadi warna biru terang
+        submit = st.form_submit_button("➕ Simpan Transaksi", type="primary")
 
         if submit:
             final_nama = st.session_state.user_name if st.session_state.role != "admin" else nama.strip()
@@ -700,24 +717,27 @@ with tab_input:
                 st.rerun()
 
 # ------------------------------------------
-# TAB 2: RIWAYAT KAS MOBILE
+# TAB 2: RIWAYAT KAS
 # ------------------------------------------
 with tab_history:
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        if st.button("🔄 Sync Data", use_container_width=True):
+        # Tombol Sync warna biru
+        if st.button("🔄 Sync", type="primary", use_container_width=True):
             force_mirror_sheets()
             st.rerun()
 
     if not df.empty and len(df) > 0:
         pdf_bytes = generate_pdf(df, 0.0, total_masuk, total_keluar, saldo_total)
         with col_b2:
+            # Tombol PDF warna biru
             st.download_button(
-                label="📄 Unduh PDF",
+                label="📄 PDF",
                 data=pdf_bytes,
                 file_name=f"Kas_{today_str}.pdf",
                 mime="application/pdf",
-                use_container_width=True,
+                type="primary",
+                use_container_width=True
             )
 
         st.caption(f"Total: {len(df)} Transaksi")
@@ -748,9 +768,10 @@ with tab_history:
                     unsafe_allow_html=True,
                 )
             with col_hps:
-                st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-                if st.button("🗑️", key=f"del_{row['id']}", help="Hapus transaksi"):
+                st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+                # Tombol hapus menggunakan warna merah
+                if st.button("🗑️", key=f"del_{row['id']}", type="secondary"):
                     delete_data(row["id"])
                     st.rerun()
     else:
-        st.info("Belum ada data transaksi.")
+        st.info("Belum ada catatan kas.")
