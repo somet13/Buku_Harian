@@ -36,11 +36,11 @@ st.markdown(
     /* Global Setup */
     html, body, [class*="css"], .stApp {
         background-color: #0b111e !important;
-        color: #94a3b8 !important;
+        color: #e2e8f0 !important;
         font-family: 'Poppins', sans-serif !important;
     }
 
-    /* Padding Atas Aman Agar Tidak Terpotong */
+    /* Padding Atas Layar */
     .block-container {
         max-width: 480px !important;
         padding-top: 4.5rem !important;
@@ -50,7 +50,7 @@ st.markdown(
         margin: 0 auto !important;
     }
 
-    /* Card Login Dark */
+    /* Card Login */
     .login-card {
         background: #0f172a;
         border: 1px solid #1e293b;
@@ -74,19 +74,19 @@ st.markdown(
     }
     .login-title {
         color: #ffffff;
-        font-size: 17px;
+        font-size: 18px;
         font-weight: 700;
         margin-bottom: 4px;
     }
     .login-desc {
         font-size: 11px;
-        color: #64748b;
+        color: #94a3b8;
         margin-bottom: 16px;
     }
 
-    /* Top Navbar Box */
+    /* Top Navbar */
     .brand-title {
-        font-size: 17px;
+        font-size: 18px;
         font-weight: 700;
         color: #ffffff;
         display: flex;
@@ -106,11 +106,12 @@ st.markdown(
     }
     .saldo-main-title {
         font-size: 11px;
-        color: #64748b;
-        font-weight: 500;
+        color: #94a3b8;
+        font-weight: 600;
+        letter-spacing: 0.5px;
     }
     .saldo-main-value {
-        font-size: 22px;
+        font-size: 24px;
         font-weight: 700;
         color: #3b82f6;
         margin-top: 2px;
@@ -129,42 +130,82 @@ st.markdown(
         padding: 10px 12px;
     }
     .sub-card-title {
-        font-size: 10px;
-        color: #64748b;
+        font-size: 11px;
+        color: #94a3b8;
         font-weight: 500;
     }
     .sub-card-value {
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 700;
         margin-top: 2px;
     }
     .sub-card-value.in { color: #10b981; }
     .sub-card-value.out { color: #ef4444; }
 
-    /* Input Streamlit */
-    div[data-testid="stTextInput"] input, 
-    div[data-testid="stNumberInput"] input,
-    div[data-testid="stSelectbox"] div[data-baseweb="select"] {
-        background-color: #131b2e !important;
-        border: 1px solid #1e293b !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-        font-size: 13px !important;
-        min-height: 40px !important;
-    }
+    /* ======================================================= */
+    /* PERBAIKAN INPUT & PLACEHOLDER AGAR TERBACA JELAS */
+    /* ======================================================= */
     div[data-testid="stTextInput"] label,
     div[data-testid="stNumberInput"] label,
     div[data-testid="stSelectbox"] label {
-        color: #94a3b8 !important;
-        font-size: 11px !important;
+        color: #cbd5e1 !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        margin-bottom: 4px !important;
+    }
+
+    /* Input Biasa & Input Terkunci (Disabled) */
+    div[data-testid="stTextInput"] input, 
+    div[data-testid="stNumberInput"] input {
+        background-color: #131b2e !important;
+        border: 1px solid #334155 !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border-radius: 8px !important;
+        font-size: 14px !important;
         font-weight: 500 !important;
+        min-height: 42px !important;
+        opacity: 1 !important;
+    }
+
+    /* Warna Teks Placeholder */
+    div[data-testid="stTextInput"] input::placeholder, 
+    div[data-testid="stNumberInput"] input::placeholder {
+        color: #64748b !important;
+        -webkit-text-fill-color: #64748b !important;
+        font-size: 13px !important;
+        opacity: 1 !important;
+    }
+
+    /* Dropdown / Selectbox */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] {
+        background-color: #131b2e !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        min-height: 42px !important;
+    }
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] * {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+    }
+
+    /* Tombol Plus Minus pada NumberInput */
+    div[data-testid="stNumberInput"] button {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+        border: 1px solid #334155 !important;
+    }
+    div[data-testid="stNumberInput"] button:hover {
+        background-color: #3b82f6 !important;
     }
 
     /* Tab Navigasi */
     div[data-testid="stTabs"] button {
         font-size: 13px !important;
         font-weight: 600 !important;
-        color: #64748b !important;
+        color: #94a3b8 !important;
         padding: 8px 12px !important;
     }
     div[data-testid="stTabs"] button[aria-selected="true"] {
@@ -172,39 +213,24 @@ st.markdown(
         border-bottom-color: #3b82f6 !important;
     }
 
-    /* ========================================= */
-    /* PERBAIKAN WARNA TOMBOL AGAR TEKS KELIHATAN */
-    /* ========================================= */
-
-    /* 1. Tombol Utama (Biru Terang) */
-    button[kind="primary"] {
+    /* Tombol Submit Simpan Transaksi (Biru Terang + Teks Putih Tebal) */
+    div[data-testid="stFormSubmitButton"] button {
         background-color: #3b82f6 !important;
         border: none !important;
-        border-radius: 8px !important;
-        min-height: 42px !important;
+        border-radius: 10px !important;
+        width: 100% !important;
+        min-height: 44px !important;
+        margin-top: 8px !important;
     }
-    button[kind="primary"]:hover {
+    div[data-testid="stFormSubmitButton"] button:hover {
         background-color: #2563eb !important;
     }
-    /* Paksa teks di dalam tombol primary menjadi putih terang */
-    button[kind="primary"] * {
+    div[data-testid="stFormSubmitButton"] button p,
+    div[data-testid="stFormSubmitButton"] button span {
         color: #ffffff !important;
-        font-weight: 600 !important;
-    }
-
-    /* 2. Tombol Sekunder (Keluar / Hapus) */
-    button[kind="secondary"] {
-        background-color: rgba(239, 68, 68, 0.1) !important;
-        border: 1px solid rgba(239, 68, 68, 0.3) !important;
-        border-radius: 8px !important;
-    }
-    button[kind="secondary"]:hover {
-        background-color: rgba(239, 68, 68, 0.2) !important;
-    }
-    /* Paksa teks di dalam tombol secondary menjadi merah terang */
-    button[kind="secondary"] * {
-        color: #ef4444 !important;
-        font-weight: 600 !important;
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.3px !important;
     }
 
     /* Card Item Riwayat Kas */
@@ -212,7 +238,7 @@ st.markdown(
         background: #0f172a;
         border: 1px solid #1e293b;
         border-radius: 12px;
-        padding: 10px 12px;
+        padding: 12px 14px;
         margin-bottom: 8px;
     }
     .tx-top {
@@ -223,40 +249,41 @@ st.markdown(
     }
     .tx-user {
         color: #38bdf8;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
     }
     .badge-in {
         background: rgba(16, 185, 129, 0.15);
         color: #34d399;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 600;
-        padding: 2px 6px;
-        border-radius: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
     }
     .badge-out {
         background: rgba(239, 68, 68, 0.15);
         color: #f87171;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 600;
-        padding: 2px 6px;
-        border-radius: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
     }
     .tx-desc {
         color: #f1f5f9;
-        font-size: 12.5px;
+        font-size: 13px;
         font-weight: 600;
+        margin-top: 2px;
     }
     .tx-bottom {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: 6px;
-        font-size: 10.5px;
-        color: #64748b;
+        margin-top: 8px;
+        font-size: 11px;
+        color: #94a3b8;
     }
 </style>
 """,
@@ -293,9 +320,7 @@ if not st.session_state.logged_in:
     with st.form("form_login"):
         u_input = st.text_input("Username", placeholder="Masukkan username")
         p_input = st.text_input("Password", type="password", placeholder="Masukkan password")
-        
-        # Mengubah tombol login menjadi primary (Biru/Putih)
-        btn_login = st.form_submit_button("Buka Kunci ➔", type="primary")
+        btn_login = st.form_submit_button("Buka Kunci ➔")
 
         if btn_login:
             clean_u = u_input.strip().lower()
@@ -620,14 +645,13 @@ with col_n1:
         f"""
     <div class="brand-title">
         <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> Kas<span>Ku</span>
-        <span style="font-size:11px; color:#64748b; font-weight:400;">({st.session_state.user_name})</span>
+        <span style="font-size:12px; color:#94a3b8; font-weight:400;">({st.session_state.user_name})</span>
     </div>
     """,
         unsafe_allow_html=True,
     )
 with col_n2:
-    # Menggunakan type secondary untuk logout agar warnanya merah
-    if st.button("🔒 Keluar", type="secondary", use_container_width=True):
+    if st.button("🔒 Keluar", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.user_name = ""
@@ -700,8 +724,7 @@ with tab_input:
                 format_func=lambda x: "Pemasukan (+)" if x == "masuk" else "Pengeluaran (-)"
             )
 
-        # Mengubah tombol simpan transaksi menjadi warna biru terang
-        submit = st.form_submit_button("➕ Simpan Transaksi", type="primary")
+        submit = st.form_submit_button("➕ Simpan Transaksi")
 
         if submit:
             final_nama = st.session_state.user_name if st.session_state.role != "admin" else nama.strip()
@@ -722,21 +745,18 @@ with tab_input:
 with tab_history:
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        # Tombol Sync warna biru
-        if st.button("🔄 Sync", type="primary", use_container_width=True):
+        if st.button("🔄 Sync", use_container_width=True):
             force_mirror_sheets()
             st.rerun()
 
     if not df.empty and len(df) > 0:
         pdf_bytes = generate_pdf(df, 0.0, total_masuk, total_keluar, saldo_total)
         with col_b2:
-            # Tombol PDF warna biru
             st.download_button(
-                label="📄 PDF",
+                label="📄 Unduh PDF",
                 data=pdf_bytes,
                 file_name=f"Kas_{today_str}.pdf",
                 mime="application/pdf",
-                type="primary",
                 use_container_width=True
             )
 
@@ -769,8 +789,7 @@ with tab_history:
                 )
             with col_hps:
                 st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-                # Tombol hapus menggunakan warna merah
-                if st.button("🗑️", key=f"del_{row['id']}", type="secondary"):
+                if st.button("🗑️", key=f"del_{row['id']}"):
                     delete_data(row["id"])
                     st.rerun()
     else:
