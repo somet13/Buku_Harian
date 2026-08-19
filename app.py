@@ -271,7 +271,7 @@ if not st.session_state.logged_in:
         """
     <div class="login-card">
         <div class="login-icon"><i class="fa-solid fa-lock"></i></div>
-        <div class="login-title">Kunci Aplikasi Kas</div>
+        <div class="login-title">LOGIN Aplikasi Kas</div>
         <div class="login-desc">Masukkan Username & Password untuk membuka catatan kas kamu.</div>
     </div>
     """,
@@ -280,7 +280,7 @@ if not st.session_state.logged_in:
     with st.form("form_login"):
         u_input = st.text_input("Username", placeholder="Masukkan username")
         p_input = st.text_input("Password", type="password", placeholder="Masukkan password")
-        btn_login = st.form_submit_button("Buka Kunci ➔")
+        btn_login = st.form_submit_button("LOGIN ➔")
 
         if btn_login:
             clean_u = u_input.strip().lower()
@@ -611,7 +611,7 @@ with col_n1:
         unsafe_allow_html=True,
     )
 with col_n2:
-    if st.button("🔒 Kunci"):
+    if st.button("🔒 LOGOUT"):
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.user_name = ""
