@@ -700,12 +700,12 @@ with tab_input:
                 st.rerun()
 
 # ------------------------------------------
-# TAB 2: RIWAYAT KAS
+# TAB 2: RIWAYAT KAS MOBILE
 # ------------------------------------------
 with tab_history:
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        if st.button("🔄 Sync"):
+        if st.button("🔄 Sync Data", use_container_width=True):
             force_mirror_sheets()
             st.rerun()
 
@@ -713,10 +713,11 @@ with tab_history:
         pdf_bytes = generate_pdf(df, 0.0, total_masuk, total_keluar, saldo_total)
         with col_b2:
             st.download_button(
-                label="📄 PDF",
+                label="📄 Unduh PDF",
                 data=pdf_bytes,
                 file_name=f"Kas_{today_str}.pdf",
                 mime="application/pdf",
+                use_container_width=True,
             )
 
         st.caption(f"Total: {len(df)} Transaksi")
@@ -747,9 +748,9 @@ with tab_history:
                     unsafe_allow_html=True,
                 )
             with col_hps:
-                st.write("")
-                if st.button("🗑️", key=f"del_{row['id']}"):
+                st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+                if st.button("🗑️", key=f"del_{row['id']}", help="Hapus transaksi"):
                     delete_data(row["id"])
                     st.rerun()
     else:
-        st.info("Belum ada catatan kas.")
+        st.info("Belum ada data transaksi.")
