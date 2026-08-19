@@ -18,10 +18,10 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 WIB = timezone(timedelta(hours=7))
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CSS DARK MODERN
+# 1. KONFIGURASI MOBILE-FIRST & CSS DARK
 # ==========================================
 st.set_page_config(
-    page_title="KasKu - Buku Kas Harian",
+    page_title="KasKu Mobile",
     page_icon="💳",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -33,199 +33,217 @@ st.markdown(
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-    /* Global Theme */
+    /* Global Setup */
     html, body, [class*="css"], .stApp {
         background-color: #0b111e !important;
         color: #94a3b8 !important;
         font-family: 'Poppins', sans-serif !important;
     }
 
-    /* Hilangkan padding default streamlit */
+    /* Padding Atas Aman Agar Tidak Terpotong */
     .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 680px !important;
+        max-width: 480px !important;
+        padding-top: 4.5rem !important;
+        padding-bottom: 2.5rem !important;
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+        margin: 0 auto !important;
     }
 
-    /* Modal / Card Login Dark */
+    /* Card Login Dark */
     .login-card {
         background: #0f172a;
         border: 1px solid #1e293b;
         border-radius: 16px;
-        padding: 32px 24px;
-        max-width: 380px;
-        margin: 40px auto 20px auto;
+        padding: 24px 18px;
+        margin: 20px auto;
         text-align: center;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
     }
     .login-icon {
-        width: 54px;
-        height: 54px;
+        width: 48px;
+        height: 48px;
         background: rgba(59, 130, 246, 0.15);
         color: #3b82f6;
-        border-radius: 14px;
+        border-radius: 12px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 22px;
-        margin-bottom: 16px;
+        font-size: 20px;
+        margin-bottom: 12px;
     }
     .login-title {
         color: #ffffff;
-        font-size: 18px;
+        font-size: 17px;
         font-weight: 700;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
     }
     .login-desc {
-        font-size: 12px;
+        font-size: 11px;
         color: #64748b;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }
 
-    /* Top Navigation Bar */
-    .navbar {
+    /* Top Navbar Box */
+    .mobile-navbar {
         background-color: #0d1527;
         border: 1px solid #1e293b;
         border-radius: 12px;
-        padding: 12px 16px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 18px;
+        padding: 10px 14px;
+        margin-bottom: 14px;
     }
     .brand-title {
-        font-size: 18px;
+        font-size: 17px;
         font-weight: 700;
         color: #ffffff;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
     }
     .brand-title span { color: #3b82f6; }
 
-    /* Summary Dashboard Cards */
-    .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-        margin-bottom: 18px;
-    }
-    @media (max-width: 600px) {
-        .summary-grid { grid-template-columns: 1fr; }
-    }
-    .summary-card {
+    /* Ringkasan Saldo */
+    .saldo-main-card {
         background: #0f172a;
         border: 1px solid #1e293b;
-        border-radius: 12px;
+        border-radius: 14px;
         padding: 14px 16px;
+        margin-bottom: 10px;
+        text-align: center;
     }
-    .card-title {
+    .saldo-main-title {
         font-size: 11px;
         color: #64748b;
         font-weight: 500;
-        margin-bottom: 4px;
     }
-    .card-value {
-        font-size: 17px;
+    .saldo-main-value {
+        font-size: 22px;
         font-weight: 700;
+        color: #3b82f6;
+        margin-top: 2px;
     }
-    .card-value.balance { color: #3b82f6; }
-    .card-value.income { color: #10b981; }
-    .card-value.expense { color: #ef4444; }
 
-    /* Form Container Dark */
-    .form-box {
+    .summary-sub-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .sub-card {
         background: #0f172a;
         border: 1px solid #1e293b;
         border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 20px;
+        padding: 10px 12px;
     }
+    .sub-card-title {
+        font-size: 10px;
+        color: #64748b;
+        font-weight: 500;
+    }
+    .sub-card-value {
+        font-size: 14px;
+        font-weight: 700;
+        margin-top: 2px;
+    }
+    .sub-card-value.in { color: #10b981; }
+    .sub-card-value.out { color: #ef4444; }
 
-    /* Input Streamlit Styling */
+    /* Input Streamlit */
     div[data-testid="stTextInput"] input, 
     div[data-testid="stNumberInput"] input,
-    div[data-testid="stSelectbox"] div[data-baseweb="select"],
-    div[data-testid="stDateInput"] input,
-    div[data-testid="stTimeInput"] input {
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] {
         background-color: #131b2e !important;
         border: 1px solid #1e293b !important;
         color: #ffffff !important;
         border-radius: 8px !important;
         font-size: 13px !important;
+        min-height: 40px !important;
     }
     div[data-testid="stTextInput"] label,
     div[data-testid="stNumberInput"] label,
-    div[data-testid="stSelectbox"] label,
-    div[data-testid="stDateInput"] label,
-    div[data-testid="stTimeInput"] label,
-    div[data-testid="stRadio"] label {
+    div[data-testid="stSelectbox"] label {
         color: #94a3b8 !important;
-        font-size: 12px !important;
+        font-size: 11px !important;
         font-weight: 500 !important;
     }
 
-    /* Tombol Biru KasKu */
+    /* Tab Navigasi */
+    div[data-testid="stTabs"] button {
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: #64748b !important;
+        padding: 8px 12px !important;
+    }
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        color: #3b82f6 !important;
+        border-bottom-color: #3b82f6 !important;
+    }
+
+    /* Tombol Biru */
     div[data-testid="stFormSubmitButton"] button, 
     .stButton>button, 
     .stDownloadButton>button {
         background-color: #3b82f6 !important;
         color: #ffffff !important;
         border: none !important;
-        border-radius: 8px !important;
+        border-radius: 10px !important;
         font-weight: 600 !important;
         font-size: 13px !important;
-        padding: 8px 16px !important;
+        padding: 10px !important;
         width: 100% !important;
-        transition: 0.2s ease !important;
-    }
-    div[data-testid="stFormSubmitButton"] button:hover, 
-    .stButton>button:hover,
-    .stDownloadButton>button:hover {
-        background-color: #2563eb !important;
+        min-height: 42px !important;
     }
 
-    /* Tabel Transaksi Dark */
-    .tx-table-card {
+    /* Card Item Riwayat Kas */
+    .tx-mobile-card {
         background: #0f172a;
         border: 1px solid #1e293b;
         border-radius: 12px;
-        padding: 12px 14px;
+        padding: 10px 12px;
         margin-bottom: 8px;
     }
-    .user-name-tag {
+    .tx-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .tx-user {
         color: #38bdf8;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 6px;
-    }
-    .tx-desc-text {
-        color: #f1f5f9;
-        font-size: 13px;
-        font-weight: 600;
-        margin-top: 2px;
-    }
-    .tx-sub-info {
-        font-size: 11px;
-        color: #64748b;
+        gap: 4px;
     }
     .badge-in {
         background: rgba(16, 185, 129, 0.15);
         color: #34d399;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 6px;
+        padding: 2px 6px;
+        border-radius: 4px;
     }
     .badge-out {
         background: rgba(239, 68, 68, 0.15);
         color: #f87171;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 6px;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    .tx-desc {
+        color: #f1f5f9;
+        font-size: 12.5px;
+        font-weight: 600;
+    }
+    .tx-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 6px;
+        font-size: 10.5px;
+        color: #64748b;
     }
 </style>
 """,
@@ -233,7 +251,7 @@ st.markdown(
 )
 
 # ==========================================
-# 2. SISTEM LOGIN / PIN AKUN
+# 2. SISTEM LOGIN AKUN
 # ==========================================
 USER_ACCOUNTS = {
     "admin": {"password": "admin123", "nama": "Administrator", "role": "admin"},
@@ -254,7 +272,7 @@ if not st.session_state.logged_in:
     <div class="login-card">
         <div class="login-icon"><i class="fa-solid fa-lock"></i></div>
         <div class="login-title">Kunci Aplikasi Kas</div>
-        <div class="login-desc">Masukkan Username & Password untuk membuka catatan kas harian kamu.</div>
+        <div class="login-desc">Masukkan Username & Password untuk membuka catatan kas kamu.</div>
     </div>
     """,
         unsafe_allow_html=True,
@@ -262,7 +280,7 @@ if not st.session_state.logged_in:
     with st.form("form_login"):
         u_input = st.text_input("Username", placeholder="Masukkan username")
         p_input = st.text_input("Password", type="password", placeholder="Masukkan password")
-        btn_login = st.form_submit_button("Buka Kunci")
+        btn_login = st.form_submit_button("Buka Kunci ➔")
 
         if btn_login:
             clean_u = u_input.strip().lower()
@@ -490,10 +508,10 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=30,
-        leftMargin=30,
-        topMargin=30,
-        bottomMargin=30,
+        rightMargin=25,
+        leftMargin=25,
+        topMargin=25,
+        bottomMargin=25,
     )
     elements = []
     styles = getSampleStyleSheet()
@@ -502,7 +520,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
         "TitleStyle",
         parent=styles["Heading1"],
         fontName="Helvetica-Bold",
-        fontSize=18,
+        fontSize=16,
         alignment=1,
         spaceAfter=10,
     )
@@ -510,15 +528,15 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
         "SubTitleStyle",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=10,
+        fontSize=9,
         alignment=1,
-        spaceAfter=20,
+        spaceAfter=15,
     )
 
     elements.append(Paragraph("BUKU KAS HARIAN", title_style))
     elements.append(
         Paragraph(
-            f"Laporan Dicetak Pada: {datetime.now(WIB).strftime('%d-%m-%Y %H:%M:%S')} WIB",
+            f"Dicetak: {datetime.now(WIB).strftime('%d-%m-%Y %H:%M:%S')} WIB",
             subtitle_style,
         )
     )
@@ -529,19 +547,19 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
         ["Total Pengeluaran (-)", format_rupiah(total_out)],
         ["Saldo Akhir Periode", format_rupiah(s_akhir)],
     ]
-    t_summary = Table(summary_data, colWidths=[200, 300])
+    t_summary = Table(summary_data, colWidths=[180, 320])
     t_summary.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
             ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#ffffff")),
             ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 10),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#1e293b")),
         ])
     )
     elements.append(t_summary)
-    elements.append(Spacer(1, 15))
+    elements.append(Spacer(1, 12))
 
     table_data = [
         ["Nama", "Tanggal", "Waktu", "Kategori", "Keterangan", "Jenis", "Nominal"]
@@ -558,7 +576,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
                 format_rupiah(row["jumlah"]),
             ])
 
-    t_tx = Table(table_data, colWidths=[75, 55, 40, 75, 120, 50, 85])
+    t_tx = Table(table_data, colWidths=[70, 55, 40, 70, 135, 50, 80])
     t_tx.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
@@ -576,7 +594,7 @@ def generate_pdf(df_pdf, s_awal, total_in, total_out, s_akhir):
     return buffer
 
 # ==========================================
-# 4. NAVBAR HEADER APLIKASI
+# 4. NAVBAR HEADER ATAS
 # ==========================================
 df = load_data()
 today_str = str(datetime.now(WIB).date())
@@ -587,7 +605,7 @@ with col_n1:
         f"""
     <div class="brand-title">
         <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> Kas<span>Ku</span>
-        <span style="font-size:12px; color:#64748b; font-weight:400; margin-left:6px;">({st.session_state.user_name})</span>
+        <span style="font-size:11px; color:#64748b; font-weight:400;">({st.session_state.user_name})</span>
     </div>
     """,
         unsafe_allow_html=True,
@@ -601,7 +619,7 @@ with col_n2:
         st.rerun()
 
 # ==========================================
-# 5. RINGKASAN SALDO (SUMMARY CARDS)
+# 5. RINGKASAN SALDO
 # ==========================================
 total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum()) if not df.empty else 0.0
 total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum()) if not df.empty else 0.0
@@ -609,18 +627,18 @@ saldo_total = float(df.iloc[-1]["saldo"]) if not df.empty else 0.0
 
 st.markdown(
     f"""
-<div class="summary-grid">
-    <div class="summary-card">
-        <div class="card-title">Sisa Saldo Kas</div>
-        <div class="card-value balance">{format_rupiah(saldo_total)}</div>
+<div class="saldo-main-card">
+    <div class="saldo-main-title">SISA SALDO KAS</div>
+    <div class="saldo-main-value">{format_rupiah(saldo_total)}</div>
+</div>
+<div class="summary-sub-grid">
+    <div class="sub-card">
+        <div class="sub-card-title">Pemasukan (+)</div>
+        <div class="sub-card-value in">{format_rupiah(total_masuk)}</div>
     </div>
-    <div class="summary-card">
-        <div class="card-title">Total Pemasukan</div>
-        <div class="card-value income">{format_rupiah(total_masuk)}</div>
-    </div>
-    <div class="summary-card">
-        <div class="card-title">Total Pengeluaran</div>
-        <div class="card-value expense">{format_rupiah(total_keluar)}</div>
+    <div class="sub-card">
+        <div class="sub-card-title">Pengeluaran (-)</div>
+        <div class="sub-card-value out">{format_rupiah(total_keluar)}</div>
     </div>
 </div>
 """,
@@ -633,7 +651,7 @@ st.markdown(
 tab_input, tab_history = st.tabs(["➕ Catat Transaksi", "📜 Riwayat Kas"])
 
 # ------------------------------------------
-# TAB 1: FORM INPUT TRANSAKSI
+# TAB 1: FORM INPUT
 # ------------------------------------------
 with tab_input:
     kategori_list = [
@@ -648,21 +666,18 @@ with tab_input:
     now_wib = datetime.now(WIB)
 
     with st.form("form_tx", clear_on_submit=True):
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            if st.session_state.role == "admin":
-                nama = st.text_input("Nama / Pihak Terkait", placeholder="Contoh: Firmansyah / Toko Ani")
-            else:
-                nama = st.text_input("Nama / Pihak Terkait", value=st.session_state.user_name, disabled=True)
-        with col_f2:
+        if st.session_state.role == "admin":
+            nama = st.text_input("Nama / Pihak", placeholder="Contoh: Firmansyah / Toko Ani")
+        else:
+            nama = st.text_input("Nama / Pihak", value=st.session_state.user_name, disabled=True)
+
+        keterangan = st.text_input("Keterangan", placeholder="Contoh: Iuran kas / Beli bensin")
+        jumlah = st.number_input("Nominal (Rp)", min_value=0.0, step=10000.0)
+
+        col_k1, col_k2 = st.columns(2)
+        with col_k1:
             kategori = st.selectbox("Kategori", kategori_list)
-
-        keterangan = st.text_input("Keterangan", placeholder="Contoh: Iuran Kas / Beli ATK")
-
-        col_f3, col_f4 = st.columns(2)
-        with col_f3:
-            jumlah = st.number_input("Nominal (Rp)", min_value=0.0, step=10000.0)
-        with col_f4:
+        with col_k2:
             jenis = st.selectbox(
                 "Jenis", 
                 ["masuk", "keluar"], 
@@ -681,60 +696,60 @@ with tab_input:
                 tgl_str = today_str
                 waktu_str = now_wib.strftime("%H:%M")
                 add_data(final_nama, tgl_str, waktu_str, kategori, keterangan or "-", jenis, jumlah)
-                st.success(f"Transaksi atas nama {final_nama} berhasil dicatat! ✓")
+                st.success("Tersimpan! ✓")
                 st.rerun()
 
 # ------------------------------------------
-# TAB 2: RIWAYAT & TABEL TRANSAKSI
+# TAB 2: RIWAYAT KAS
 # ------------------------------------------
 with tab_history:
-    col_btn1, col_btn2 = st.columns([1, 1])
-    with col_btn1:
-        if st.button("🔄 Sinkronkan Data"):
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        if st.button("🔄 Sync"):
             force_mirror_sheets()
             st.rerun()
 
     if not df.empty and len(df) > 0:
         pdf_bytes = generate_pdf(df, 0.0, total_masuk, total_keluar, saldo_total)
-        with col_btn2:
+        with col_b2:
             st.download_button(
-                label="📄 Unduh Laporan PDF",
+                label="📄 PDF",
                 data=pdf_bytes,
-                file_name=f"Laporan_Kas_{today_str}.pdf",
+                file_name=f"Kas_{today_str}.pdf",
                 mime="application/pdf",
             )
 
-        st.caption(f"Daftar Transaksi ({len(df)} Data)")
+        st.caption(f"Total: {len(df)} Transaksi")
         for idx, row in df.iloc[::-1].iterrows():
             is_masuk = row["jenis"] == "masuk"
             badge_cls = "badge-in" if is_masuk else "badge-out"
             sign = "+" if is_masuk else "-"
             color_amt = "#34d399" if is_masuk else "#f87171"
 
-            col_card, col_del = st.columns([6, 1])
-            with col_card:
+            col_item, col_hps = st.columns([5, 1])
+            with col_item:
                 st.markdown(
                     f"""
-                <div class="tx-table-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div class="user-name-tag">
+                <div class="tx-mobile-card">
+                    <div class="tx-top">
+                        <div class="tx-user">
                             <i class="fa-regular fa-user"></i> {row.get('nama', '-')}
                         </div>
-                        <span class="{badge_cls}">{'Pemasukan' if is_masuk else 'Pengeluaran'}</span>
+                        <span class="{badge_cls}">{'Masuk' if is_masuk else 'Keluar'}</span>
                     </div>
-                    <div class="tx-desc-text">{row['keterangan'] or '-'}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
-                        <span class="tx-sub_info" style="font-size:11px; color:#64748b;">📅 {row['tanggal']} • {row['waktu']} WIB • <em style="color:#94a3b8;">{row['kategori']}</em></span>
-                        <span style="color:{color_amt}; font-weight:700; font-size:13px;">{sign}{format_rupiah(row['jumlah'])}</span>
+                    <div class="tx-desc">{row['keterangan'] or '-'}</div>
+                    <div class="tx-bottom">
+                        <span>{row['tanggal']} • {row['waktu']} • {row['kategori']}</span>
+                        <span style="color:{color_amt}; font-weight:700; font-size:12px;">{sign}{format_rupiah(row['jumlah'])}</span>
                     </div>
                 </div>
                 """,
                     unsafe_allow_html=True,
                 )
-            with col_del:
+            with col_hps:
                 st.write("")
-                if st.button("🗑️", key=f"del_{row['id']}", help="Hapus transaksi"):
+                if st.button("🗑️", key=f"del_{row['id']}"):
                     delete_data(row["id"])
                     st.rerun()
     else:
-        st.info("Belum ada catatan transaksi kas.")
+        st.info("Belum ada catatan kas.")
