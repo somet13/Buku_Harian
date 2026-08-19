@@ -21,7 +21,7 @@ WIB = timezone(timedelta(hours=7))
 # 1. KONFIGURASI MOBILE-FIRST & CSS DARK
 # ==========================================
 st.set_page_config(
-    page_title="KasKu Mobile",
+    page_title="BUKU KAS",
     page_icon="💳",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -644,7 +644,7 @@ with col_n1:
     st.markdown(
         f"""
     <div class="brand-title">
-        <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> Kas<span>Ku</span>
+        <i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> BUKU<span>KAS</span>
         <span style="font-size:12px; color:#94a3b8; font-weight:400;">({st.session_state.user_name})</span>
     </div>
     """,
