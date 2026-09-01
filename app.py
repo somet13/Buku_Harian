@@ -683,14 +683,28 @@ st.markdown(
 # ==========================================
 # 5. RINGKASAN SALDO
 # ==========================================
-total_masuk = float(df[df["jenis"] == "masuk"]["jumlah"].sum()) if not df.empty else 0.0
-total_keluar = float(df[df["jenis"] == "keluar"]["jumlah"].sum()) if not df.empty else 0.0
-saldo_total = float(df.iloc[-1]["saldo"]) if not df.empty else 0.0
+df_summary = df.copy()
+selected_user_label = "Semua Kas (Gabungan)"
+
+if st.session_state.role == "admin" and not df.empty:
+    user_options = sorted([str(n) for n in df["nama"].dropna().unique() if str(n).strip() != ""])
+    selected_user = st.selectbox(
+        "📊 Pilih Tampilan Saldo Kas",
+        ["Semua Kas (Gabungan)"] + user_options,
+        key="saldo_filter_admin"
+    )
+    if selected_user != "Semua Kas (Gabungan)":
+        df_summary = df_summary[df_summary["nama"].astype(str).str.lower().str.strip() == selected_user.lower().strip()]
+        selected_user_label = f"Kas {selected_user}"
+
+total_masuk = float(df_summary[df_summary["jenis"] == "masuk"]["jumlah"].sum()) if not df_summary.empty else 0.0
+total_keluar = float(df_summary[df_summary["jenis"] == "keluar"]["jumlah"].sum()) if not df_summary.empty else 0.0
+saldo_total = total_masuk - total_keluar
 
 st.markdown(
     f"""
 <div class="saldo-main-card">
-    <div class="saldo-main-title">SISA SALDO KAS</div>
+    <div class="saldo-main-title">SISA SALDO ({selected_user_label.upper()})</div>
     <div class="saldo-main-value">{format_rupiah(saldo_total)}</div>
 </div>
 <div class="summary-sub-grid">
